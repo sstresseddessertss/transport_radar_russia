@@ -5,6 +5,9 @@ const fs = require('fs').promises;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware
+app.use(express.json());
+
 // Serve static files from the public directory
 app.use(express.static('public'));
 
@@ -27,6 +30,76 @@ app.get('/api/stops', (req, res) => {
     return res.status(500).json({ error: 'Stops data not loaded' });
   }
   res.json(stopsData);
+});
+
+// API endpoint to add a new stop
+app.post('/api/stops', async (req, res) => {
+  try {
+    const { uuid, name, direction } = req.body;
+    
+    // Validate input
+    if (!uuid || !name || !direction) {
+      return res.status(400).json({ 
+        error: 'Все поля обязательны: uuid, name, direction' 
+      });
+    }
+    
+    // Validate UUID format (8-4-4-4-12)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(uuid)) {
+      return res.status(400).json({ 
+        error: 'Неверный формат UUID. Формат: 8-4-4-4-12 hex символов' 
+      });
+    }
+    
+    // Check for duplicates
+    const exists = stopsData.stops.find(s => s.uuid.toLowerCase() === uuid.toLowerCase());
+    if (exists) {
+      return res.status(409).json({ 
+        error: 'Остановка с таким UUID уже существует' 
+      });
+    }
+    
+    // Validate direction
+    const validDirections = ['в центр', 'из центра'];
+    if (!validDirections.includes(direction)) {
+      return res.status(400).json({ 
+        error: 'Неверное направление. Должно быть "в центр" или "из центра"' 
+      });
+    }
+    
+    // Create new stop
+    const newStop = {
+      name: name.trim(),
+      uuid: uuid.toLowerCase().trim(),
+      direction: direction.trim()
+    };
+    
+    // Add to stops array
+    stopsData.stops.push(newStop);
+    
+    // Save to file
+    await fs.writeFile(
+      path.join(__dirname, 'stops.json'),
+      JSON.stringify(stopsData, null, 2),
+      'utf8'
+    );
+    
+    console.log(`New stop added: ${newStop.name} (${newStop.direction}) - ${newStop.uuid}`);
+    
+    res.status(201).json({ 
+      success: true,
+      stop: newStop,
+      message: 'Остановка успешно добавлена' 
+    });
+    
+  } catch (error) {
+    console.error('Error adding stop:', error);
+    res.status(500).json({ 
+      error: 'Ошибка при сохранении остановки',
+      details: error.message 
+    });
+  }
 });
 
 // API proxy endpoint to fetch stop data from moscowtransport.app
