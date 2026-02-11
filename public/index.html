@@ -17,16 +17,12 @@
             <div class="form-section">
                 <div class="form-group">
                     <label for="departure-stop">Остановка отправления:</label>
-                    <select id="departure-stop" class="stop-select">
-                        <option value="">Выберите остановку...</option>
-                    </select>
+                    <div id="departure-stop-container"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="destination-stop">Остановка назначения (опционально):</label>
-                    <select id="destination-stop" class="stop-select">
-                        <option value="">Выберите остановку...</option>
-                    </select>
+                    <div id="destination-stop-container"></div>
                 </div>
 
                 <div class="form-group" id="tram-selection-group" style="display: none;">
@@ -39,6 +35,48 @@
                 <button id="monitoring-btn" class="monitoring-btn monitoring-btn-off" disabled>
                     МОНИТОРИНГ
                 </button>
+
+                <!-- Add Stop Section -->
+                <div class="add-stop-section">
+                    <button id="add-stop-btn" class="add-stop-btn">+ Добавить остановку</button>
+                    
+                    <div id="add-stop-form" class="add-stop-form" style="display: none;">
+                        <div id="add-stop-notification" class="notification notification-hidden"></div>
+                        
+                        <div class="form-group">
+                            <label for="stop-uuid">UUID остановки *</label>
+                            <input type="text" id="stop-uuid" placeholder="Например: 760d1406-363e-4b1a-a604-a6c75db93493" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stop-name">Название остановки *</label>
+                            <input type="text" id="stop-name" placeholder="Например: Плодоовощной комбинат" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stop-direction">Направление *</label>
+                            <select id="stop-direction" required>
+                                <option value="">Выберите направление...</option>
+                                <option value="в центр">в центр</option>
+                                <option value="из центра">из центра</option>
+                            </select>
+                        </div>
+
+                        <div class="add-stop-form-buttons">
+                            <button id="save-stop-btn" class="btn-save">Сохранить</button>
+                            <button id="cancel-stop-btn" class="btn-cancel">Отмена</button>
+                        </div>
+
+                        <div class="add-stop-instructions">
+                            <h4>Как найти UUID остановки:</h4>
+                            <ol>
+                                <li>Откройте сайт <code>moscowtransport.app</code> или приложение «Московский транспорт»</li>
+                                <li>Найдите нужную остановку</li>
+                                <li>UUID можно найти в URL страницы остановки: <code>moscowtransport.app/api/stop_v2/{UUID}</code></li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="error-message" class="error-message" style="display: none;"></div>

@@ -1,3 +1,212 @@
+// SearchableDropdown Component
+class SearchableDropdown {
+    constructor(containerId, placeholder, onSelect) {
+        this.container = document.getElementById(containerId);
+        this.placeholder = placeholder;
+        this.onSelect = onSelect;
+        this.items = [];
+        this.selectedItem = null;
+        this.isOpen = false;
+        this.highlightedIndex = -1;
+        
+        this.render();
+        this.attachEventListeners();
+    }
+    
+    render() {
+        this.container.innerHTML = `
+            <div class="searchable-dropdown">
+                <input 
+                    type="text" 
+                    class="searchable-dropdown-input" 
+                    placeholder="${this.placeholder}"
+                    readonly
+                />
+                <div class="searchable-dropdown-list searchable-dropdown-hidden"></div>
+            </div>
+        `;
+        
+        this.input = this.container.querySelector('.searchable-dropdown-input');
+        this.list = this.container.querySelector('.searchable-dropdown-list');
+    }
+    
+    attachEventListeners() {
+        // Click on input to toggle dropdown
+        this.input.addEventListener('click', () => {
+            if (!this.isOpen) {
+                this.open();
+            }
+        });
+        
+        // Input changes for search
+        this.input.addEventListener('input', () => {
+            this.filterItems();
+        });
+        
+        // Keyboard navigation
+        this.input.addEventListener('keydown', (e) => {
+            if (!this.isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')) {
+                this.open();
+                e.preventDefault();
+                return;
+            }
+            
+            if (this.isOpen) {
+                switch (e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.highlightNext();
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.highlightPrevious();
+                        break;
+                    case 'Enter':
+                        e.preventDefault();
+                        if (this.highlightedIndex >= 0) {
+                            const filteredItems = this.getFilteredItems();
+                            if (filteredItems[this.highlightedIndex]) {
+                                this.selectItem(filteredItems[this.highlightedIndex]);
+                            }
+                        }
+                        break;
+                    case 'Escape':
+                        e.preventDefault();
+                        this.close();
+                        break;
+                }
+            }
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!this.container.contains(e.target)) {
+                this.close();
+            }
+        });
+    }
+    
+    setItems(items) {
+        this.items = items;
+        this.filterItems();
+    }
+    
+    getFilteredItems() {
+        const searchTerm = this.input.value.toLowerCase();
+        if (!searchTerm) {
+            return this.items;
+        }
+        
+        return this.items.filter(item => 
+            item.label.toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    filterItems() {
+        const filteredItems = this.getFilteredItems();
+        this.renderList(filteredItems);
+        this.highlightedIndex = -1;
+    }
+    
+    renderList(items) {
+        if (items.length === 0) {
+            this.list.innerHTML = '<div class="searchable-dropdown-empty">Ничего не найдено</div>';
+            return;
+        }
+        
+        this.list.innerHTML = '';
+        items.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'searchable-dropdown-item';
+            div.textContent = item.label;
+            div.dataset.index = index;
+            
+            if (this.selectedItem && this.selectedItem.value === item.value) {
+                div.classList.add('selected');
+            }
+            
+            div.addEventListener('click', () => {
+                this.selectItem(item);
+            });
+            
+            this.list.appendChild(div);
+        });
+    }
+    
+    highlightNext() {
+        const filteredItems = this.getFilteredItems();
+        if (filteredItems.length === 0) return;
+        
+        this.highlightedIndex = (this.highlightedIndex + 1) % filteredItems.length;
+        this.updateHighlight();
+    }
+    
+    highlightPrevious() {
+        const filteredItems = this.getFilteredItems();
+        if (filteredItems.length === 0) return;
+        
+        this.highlightedIndex = this.highlightedIndex <= 0 
+            ? filteredItems.length - 1 
+            : this.highlightedIndex - 1;
+        this.updateHighlight();
+    }
+    
+    updateHighlight() {
+        const items = this.list.querySelectorAll('.searchable-dropdown-item');
+        items.forEach((item, index) => {
+            if (index === this.highlightedIndex) {
+                item.classList.add('highlighted');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('highlighted');
+            }
+        });
+    }
+    
+    selectItem(item) {
+        this.selectedItem = item;
+        this.input.value = item.label;
+        this.close();
+        
+        if (this.onSelect) {
+            this.onSelect(item.value, item);
+        }
+    }
+    
+    open() {
+        this.isOpen = true;
+        this.input.removeAttribute('readonly');
+        this.input.focus();
+        this.input.select();
+        this.list.classList.remove('searchable-dropdown-hidden');
+        this.filterItems();
+    }
+    
+    close() {
+        this.isOpen = false;
+        this.input.setAttribute('readonly', 'true');
+        this.list.classList.add('searchable-dropdown-hidden');
+        this.highlightedIndex = -1;
+        
+        // Restore selected item label if it exists
+        if (this.selectedItem) {
+            this.input.value = this.selectedItem.label;
+        } else {
+            this.input.value = '';
+        }
+    }
+    
+    reset() {
+        this.selectedItem = null;
+        this.input.value = '';
+        this.close();
+    }
+    
+    getValue() {
+        return this.selectedItem ? this.selectedItem.value : null;
+    }
+}
+
 // State
 let stops = [];
 let selectedDeparture = null;
@@ -7,9 +216,11 @@ let selectedTrams = new Set();
 let monitoringActive = false;
 let monitoringInterval = null;
 
+// SearchableDropdown instances
+let departureDropdown = null;
+let destinationDropdown = null;
+
 // DOM elements
-const departureSelect = document.getElementById('departure-stop');
-const destinationSelect = document.getElementById('destination-stop');
 const tramSelectionGroup = document.getElementById('tram-selection-group');
 const tramCheckboxesContainer = document.getElementById('tram-checkboxes');
 const monitoringBtn = document.getElementById('monitoring-btn');
@@ -17,78 +228,220 @@ const resultsSection = document.getElementById('results-section');
 const resultsContainer = document.getElementById('results');
 const errorMessage = document.getElementById('error-message');
 
+// Add stop form elements
+const addStopBtn = document.getElementById('add-stop-btn');
+const addStopForm = document.getElementById('add-stop-form');
+const addStopNotification = document.getElementById('add-stop-notification');
+const stopUuidInput = document.getElementById('stop-uuid');
+const stopNameInput = document.getElementById('stop-name');
+const stopDirectionSelect = document.getElementById('stop-direction');
+const saveStopBtn = document.getElementById('save-stop-btn');
+const cancelStopBtn = document.getElementById('cancel-stop-btn');
+
 // Initialize
 async function init() {
     try {
-        const response = await fetch('/api/stops');
+        await loadStops();
+        initializeDropdowns();
+        initializeAddStopForm();
+    } catch (error) {
+        showError('Ошибка при загрузке данных: ' + error.message);
+    }
+}
+
+// Load stops from API
+async function loadStops() {
+    const response = await fetch('/api/stops');
+    if (!response.ok) {
+        throw new Error('Не удалось загрузить список остановок');
+    }
+    
+    const data = await response.json();
+    stops = data.stops;
+    
+    // Sort stops alphabetically by name + direction
+    stops.sort((a, b) => {
+        const aLabel = `${a.name} (${a.direction})`;
+        const bLabel = `${b.name} (${b.direction})`;
+        return aLabel.localeCompare(bLabel, 'ru');
+    });
+}
+
+// Initialize searchable dropdowns
+function initializeDropdowns() {
+    // Departure dropdown
+    departureDropdown = new SearchableDropdown(
+        'departure-stop-container',
+        'Выберите остановку...',
+        async (uuid, item) => {
+            selectedDeparture = stops.find(s => s.uuid === uuid);
+            if (selectedDeparture) {
+                await fetchAvailableTrams();
+            }
+        }
+    );
+    
+    // Destination dropdown
+    destinationDropdown = new SearchableDropdown(
+        'destination-stop-container',
+        'Выберите остановку...',
+        (uuid) => {
+            selectedDestination = uuid ? stops.find(s => s.uuid === uuid) : null;
+            
+            // If monitoring is active, update results with new filtering
+            if (monitoringActive) {
+                updateResults();
+            }
+        }
+    );
+    
+    // Populate both dropdowns
+    updateDropdowns();
+}
+
+// Update dropdowns with current stops
+function updateDropdowns() {
+    const items = stops.map(stop => ({
+        value: stop.uuid,
+        label: `${stop.name} (${stop.direction})`,
+        data: stop
+    }));
+    
+    departureDropdown.setItems(items);
+    destinationDropdown.setItems(items);
+}
+
+// Initialize add stop form
+function initializeAddStopForm() {
+    addStopBtn.addEventListener('click', () => {
+        addStopForm.style.display = 'block';
+        addStopBtn.style.display = 'none';
+        hideNotification();
+    });
+    
+    cancelStopBtn.addEventListener('click', () => {
+        resetAddStopForm();
+    });
+    
+    saveStopBtn.addEventListener('click', async () => {
+        await saveNewStop();
+    });
+    
+    // Real-time UUID validation
+    stopUuidInput.addEventListener('input', () => {
+        validateUuidFormat();
+    });
+}
+
+// Validate UUID format (8-4-4-4-12)
+function validateUuidFormat() {
+    const uuid = stopUuidInput.value.trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (!uuid) {
+        stopUuidInput.style.borderColor = '';
+        return false;
+    }
+    
+    const isValid = uuidRegex.test(uuid);
+    stopUuidInput.style.borderColor = isValid ? 'var(--accent-green)' : 'var(--error-color)';
+    return isValid;
+}
+
+// Save new stop
+async function saveNewStop() {
+    const uuid = stopUuidInput.value.trim();
+    const name = stopNameInput.value.trim();
+    const direction = stopDirectionSelect.value;
+    
+    // Validate inputs
+    if (!uuid || !name || !direction) {
+        showNotification('Пожалуйста, заполните все поля', 'error');
+        return;
+    }
+    
+    if (!validateUuidFormat()) {
+        showNotification('Неверный формат UUID. Формат: 8-4-4-4-12 hex символов', 'error');
+        return;
+    }
+    
+    // Check for duplicates
+    const exists = stops.find(s => s.uuid.toLowerCase() === uuid.toLowerCase());
+    if (exists) {
+        showNotification('Остановка с таким UUID уже существует', 'error');
+        return;
+    }
+    
+    // Disable save button during request
+    saveStopBtn.disabled = true;
+    saveStopBtn.textContent = 'Сохранение...';
+    
+    try {
+        const response = await fetch('/api/stops', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uuid, name, direction })
+        });
+        
         if (!response.ok) {
-            throw new Error('Не удалось загрузить список остановок');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Ошибка при сохранении остановки');
         }
         
-        const data = await response.json();
-        stops = data.stops;
+        const result = await response.json();
         
-        // Sort stops alphabetically by name + direction
+        // Add new stop to local array
+        stops.push(result.stop);
+        
+        // Re-sort stops
         stops.sort((a, b) => {
             const aLabel = `${a.name} (${a.direction})`;
             const bLabel = `${b.name} (${b.direction})`;
             return aLabel.localeCompare(bLabel, 'ru');
         });
         
-        populateStopSelects();
+        // Update dropdowns
+        updateDropdowns();
+        
+        // Show success message
+        showNotification('Остановка успешно добавлена!', 'success');
+        
+        // Reset form after short delay
+        setTimeout(() => {
+            resetAddStopForm();
+        }, 2000);
+        
     } catch (error) {
-        showError('Ошибка при загрузке данных: ' + error.message);
+        showNotification(error.message, 'error');
+    } finally {
+        saveStopBtn.disabled = false;
+        saveStopBtn.textContent = 'Сохранить';
     }
 }
 
-// Populate stop dropdowns
-function populateStopSelects() {
-    stops.forEach(stop => {
-        const label = `${stop.name} (${stop.direction})`;
-        
-        const departureOption = document.createElement('option');
-        departureOption.value = stop.uuid;
-        departureOption.textContent = label;
-        departureOption.dataset.name = stop.name;
-        departureOption.dataset.direction = stop.direction;
-        departureSelect.appendChild(departureOption);
-        
-        const destinationOption = document.createElement('option');
-        destinationOption.value = stop.uuid;
-        destinationOption.textContent = label;
-        destinationOption.dataset.name = stop.name;
-        destinationOption.dataset.direction = stop.direction;
-        destinationSelect.appendChild(destinationOption);
-    });
+// Show notification
+function showNotification(message, type) {
+    addStopNotification.textContent = message;
+    addStopNotification.className = `notification notification-${type}`;
 }
 
-// Handle departure stop selection
-departureSelect.addEventListener('change', async (e) => {
-    const uuid = e.target.value;
-    
-    if (!uuid) {
-        selectedDeparture = null;
-        tramSelectionGroup.style.display = 'none';
-        monitoringBtn.disabled = true;
-        return;
-    }
-    
-    selectedDeparture = stops.find(s => s.uuid === uuid);
-    
-    // Fetch available trams
-    await fetchAvailableTrams();
-});
+// Hide notification
+function hideNotification() {
+    addStopNotification.className = 'notification notification-hidden';
+}
 
-// Handle destination stop selection
-destinationSelect.addEventListener('change', () => {
-    const uuid = destinationSelect.value;
-    selectedDestination = uuid ? stops.find(s => s.uuid === uuid) : null;
-    
-    // If monitoring is active, update results with new filtering
-    if (monitoringActive) {
-        updateResults();
-    }
-});
+// Reset add stop form
+function resetAddStopForm() {
+    addStopForm.style.display = 'none';
+    addStopBtn.style.display = 'block';
+    stopUuidInput.value = '';
+    stopNameInput.value = '';
+    stopDirectionSelect.value = '';
+    stopUuidInput.style.borderColor = '';
+    hideNotification();
+}
 
 // Fetch available trams for selected departure stop
 async function fetchAvailableTrams() {

@@ -291,6 +291,252 @@ footer {
     font-size: 0.9rem;
 }
 
+/* Searchable Dropdown */
+.searchable-dropdown {
+    position: relative;
+    width: 100%;
+}
+
+.searchable-dropdown-input {
+    width: 100%;
+    padding: 12px 15px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.searchable-dropdown-input:hover {
+    border-color: var(--accent-green);
+}
+
+.searchable-dropdown-input:focus {
+    outline: none;
+    border-color: var(--accent-green);
+    cursor: text;
+}
+
+.searchable-dropdown-input::placeholder {
+    color: var(--text-muted);
+}
+
+.searchable-dropdown-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.searchable-dropdown-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.searchable-dropdown-list::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+    border-radius: 4px;
+}
+
+.searchable-dropdown-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.searchable-dropdown-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-gray);
+}
+
+.searchable-dropdown-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.searchable-dropdown-item:hover,
+.searchable-dropdown-item.highlighted {
+    background-color: var(--bg-primary);
+}
+
+.searchable-dropdown-item.selected {
+    background-color: var(--bg-primary);
+    color: var(--accent-green);
+}
+
+.searchable-dropdown-empty {
+    padding: 12px 15px;
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+}
+
+.searchable-dropdown-hidden {
+    display: none;
+}
+
+/* Add Stop Form */
+.add-stop-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.add-stop-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-stop-btn:hover {
+    background-color: var(--bg-primary);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+.add-stop-form {
+    margin-top: 15px;
+    padding: 20px;
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.add-stop-form .form-group {
+    margin-bottom: 15px;
+}
+
+.add-stop-form input,
+.add-stop-form select {
+    width: 100%;
+    padding: 10px 12px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+.add-stop-form input:focus,
+.add-stop-form select:focus {
+    outline: none;
+    border-color: var(--accent-green);
+}
+
+.add-stop-form input::placeholder {
+    color: var(--text-muted);
+}
+
+.add-stop-form-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.add-stop-form-buttons button {
+    flex: 1;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-save {
+    background-color: var(--accent-green);
+    color: white;
+}
+
+.btn-save:hover {
+    background-color: var(--accent-green-hover);
+}
+
+.btn-save:disabled {
+    background-color: var(--accent-gray);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-cancel {
+    background-color: var(--accent-gray);
+    color: var(--text-primary);
+}
+
+.btn-cancel:hover {
+    background-color: #666666;
+}
+
+.add-stop-instructions {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.add-stop-instructions h4 {
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+}
+
+.add-stop-instructions ol {
+    margin-left: 20px;
+}
+
+.add-stop-instructions li {
+    margin-bottom: 6px;
+}
+
+.add-stop-instructions code {
+    background-color: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
+.notification {
+    padding: 12px 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notification-success {
+    background-color: rgba(76, 175, 80, 0.2);
+    border: 1px solid var(--accent-green);
+    color: var(--accent-green);
+}
+
+.notification-error {
+    background-color: var(--error-bg);
+    border: 1px solid var(--error-color);
+    color: var(--error-color);
+}
+
+.notification-hidden {
+    display: none;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 600px) {
     .container {
@@ -328,5 +574,17 @@ footer {
     .legend {
         flex-direction: column;
         gap: 10px;
+    }
+
+    .searchable-dropdown-list {
+        max-height: 250px;
+    }
+
+    .add-stop-form {
+        padding: 15px;
+    }
+
+    .add-stop-form-buttons {
+        flex-direction: column;
     }
 }
