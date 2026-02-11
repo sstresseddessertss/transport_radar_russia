@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚊 Радар трамваев Москвы</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚊 Радар трамваев Москвы</h1>
+            <p class="subtitle">Мониторинг прибытия трамваев в реальном времени</p>
+        </header>
+
+        <main>
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="departure-stop">Остановка отправления:</label>
+                    <select id="departure-stop" class="stop-select">
+                        <option value="">Выберите остановку...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="destination-stop">Остановка назначения (опционально):</label>
+                    <select id="destination-stop" class="stop-select">
+                        <option value="">Выберите остановку...</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="tram-selection-group" style="display: none;">
+                    <label>Выбор трамваев:</label>
+                    <div id="tram-checkboxes" class="tram-checkboxes">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <button id="monitoring-btn" class="monitoring-btn monitoring-btn-off" disabled>
+                    МОНИТОРИНГ
+                </button>
+            </div>
+
+            <div id="error-message" class="error-message" style="display: none;"></div>
+
+            <div id="results-section" class="results-section" style="display: none;">
+                <h2>Результаты мониторинга</h2>
+                <div id="results" class="results">
+                    <!-- Dynamically populated -->
+                </div>
+                <div class="legend">
+                    <span class="legend-item">
+                        <span class="telemetry-badge">GPS</span> = данные по GPS (точно)
+                    </span>
+                    <span class="legend-item">
+                        <span class="schedule-badge">РАС</span> = расписание (приблизительно)
+                    </span>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Данные предоставлены moscowtransport.app</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
