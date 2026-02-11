@@ -443,11 +443,6 @@ function resetAddStopForm() {
     hideNotification();
 }
 
-// Populate stop dropdowns (deprecated - using SearchableDropdown now)
-function populateStopSelects() {
-    // This function is no longer needed
-}
-
 // Fetch available trams for selected departure stop
 async function fetchAvailableTrams() {
     try {

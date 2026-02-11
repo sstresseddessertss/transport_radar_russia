@@ -5,6 +5,29 @@ const fs = require('fs').promises;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Simple in-memory rate limiter for POST /api/stops
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 10; // max 10 requests per minute per IP
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const requests = rateLimitMap.get(ip) || [];
+  
+  // Remove old requests outside the time window
+  const recentRequests = requests.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false; // Rate limit exceeded
+  }
+  
+  // Add current request
+  recentRequests.push(now);
+  rateLimitMap.set(ip, recentRequests);
+  
+  return true; // Request allowed
+}
+
 // Middleware
 app.use(express.json());
 
@@ -35,6 +58,14 @@ app.get('/api/stops', (req, res) => {
 // API endpoint to add a new stop
 app.post('/api/stops', async (req, res) => {
   try {
+    // Rate limiting check
+    const clientIp = req.ip || req.connection.remoteAddress;
+    if (!checkRateLimit(clientIp)) {
+      return res.status(429).json({ 
+        error: 'Слишком много запросов. Пожалуйста, попробуйте позже.' 
+      });
+    }
+    
     const { uuid, name, direction } = req.body;
     
     // Validate input
