@@ -7,6 +7,8 @@ let monitoringActive = false;
 let monitoringInterval = null;
 let fetchFailureCount = 0;
 const MAX_FETCH_FAILURES = 3;
+let expandedTrams = new Set(); // Track which tram blocks are expanded
+let arrivalHistory = {}; // Store arrival history for current stop
 
 // DOM elements
 const departureSelect = document.getElementById('departure-stop');
@@ -19,6 +21,18 @@ const errorMessage = document.getElementById('error-message');
 const stopUrlInput = document.getElementById('stop-url-input');
 const addStopBtn = document.getElementById('add-stop-btn');
 const addStopMessage = document.getElementById('add-stop-message');
+const notificationBtn = document.getElementById('notification-btn');
+const notificationSetup = document.getElementById('notification-setup');
+const notifyTimeSelect = document.getElementById('notify-time');
+const notifyTramSelect = document.getElementById('notify-tram');
+const confirmNotificationBtn = document.getElementById('confirm-notification-btn');
+const cancelNotificationBtn = document.getElementById('cancel-notification-btn');
+const activeNotificationsDiv = document.getElementById('active-notifications');
+const notificationsList = document.getElementById('notifications-list');
+
+// Notification state
+let activeNotifications = [];
+let notifiedTrams = new Set(); // Track which trams have been notified to avoid spam
 
 // Initialize
 async function init() {
@@ -146,6 +160,21 @@ function populateTramCheckboxes() {
         label.appendChild(text);
         tramCheckboxesContainer.appendChild(label);
     });
+    
+    // Also populate notification tram selector
+    populateNotificationTramSelect();
+}
+
+// Populate notification tram select
+function populateNotificationTramSelect() {
+    notifyTramSelect.innerHTML = '<option value="">Выберите...</option>';
+    
+    availableTrams.forEach(tramNumber => {
+        const option = document.createElement('option');
+        option.value = tramNumber;
+        option.textContent = tramNumber;
+        notifyTramSelect.appendChild(option);
+    });
 }
 
 // Handle tram checkbox changes
@@ -160,6 +189,13 @@ function handleTramCheckboxChange(e) {
     
     // Enable/disable monitoring button based on selection
     monitoringBtn.disabled = selectedTrams.size === 0;
+    
+    // Show notification button if at least one tram is selected
+    if (selectedTrams.size > 0) {
+        notificationBtn.style.display = 'block';
+    } else {
+        notificationBtn.style.display = 'none';
+    }
 }
 
 // Handle monitoring button click
@@ -200,6 +236,9 @@ function stopMonitoring() {
         clearInterval(monitoringInterval);
         monitoringInterval = null;
     }
+    
+    // Clear expanded state
+    expandedTrams.clear();
 }
 
 // Update results
@@ -217,6 +256,15 @@ async function updateResults() {
         // Reset failure count on success
         fetchFailureCount = 0;
         
+        // Track trams for arrival detection
+        await trackTrams(data);
+        
+        // Get latest history
+        await fetchHistory();
+        
+        // Check notifications
+        checkNotifications(data);
+        
         displayResults(data);
         
     } catch (error) {
@@ -229,6 +277,35 @@ async function updateResults() {
             // Silent retry - just log to console
             console.warn(`Fetch attempt ${fetchFailureCount} failed, will retry on next interval:`, error.message);
         }
+    }
+}
+
+// Track trams for arrival history
+async function trackTrams(data) {
+    try {
+        await fetch(`/api/track/${selectedDeparture.uuid}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ routePath: data.routePath || [] })
+        });
+    } catch (error) {
+        // Silent fail - tracking is not critical
+        console.warn('Tracking error:', error);
+    }
+}
+
+// Fetch arrival history
+async function fetchHistory() {
+    try {
+        const response = await fetch(`/api/history/${selectedDeparture.uuid}`);
+        if (response.ok) {
+            arrivalHistory = await response.json();
+        }
+    } catch (error) {
+        // Silent fail
+        console.warn('History fetch error:', error);
     }
 }
 
@@ -278,6 +355,16 @@ function displayResults(data) {
         const resultDiv = document.createElement('div');
         resultDiv.className = 'tram-result';
         
+        // Check if this tram is expanded
+        const isExpanded = expandedTrams.has(tramNumber);
+        if (isExpanded) {
+            resultDiv.classList.add('expanded');
+        }
+        
+        // Main content
+        const mainContent = document.createElement('div');
+        mainContent.className = 'tram-main-content';
+        
         const numberDiv = document.createElement('div');
         numberDiv.className = 'tram-number';
         numberDiv.textContent = tramNumber;
@@ -300,8 +387,54 @@ function displayResults(data) {
             });
         }
         
-        resultDiv.appendChild(numberDiv);
-        resultDiv.appendChild(timesDiv);
+        mainContent.appendChild(numberDiv);
+        mainContent.appendChild(timesDiv);
+        
+        // History section (accordion content)
+        const history = arrivalHistory[tramNumber];
+        if (history && history.length > 0) {
+            const historyDiv = document.createElement('div');
+            historyDiv.className = 'tram-history';
+            historyDiv.style.display = isExpanded ? 'block' : 'none';
+            
+            const historyTitle = document.createElement('div');
+            historyTitle.className = 'history-title';
+            historyTitle.textContent = 'Последние прибытия:';
+            historyDiv.appendChild(historyTitle);
+            
+            const historyList = document.createElement('div');
+            historyList.className = 'history-list';
+            
+            history.forEach(item => {
+                const historyItem = document.createElement('span');
+                historyItem.className = 'history-item';
+                historyItem.textContent = item.displayTime;
+                historyList.appendChild(historyItem);
+            });
+            
+            historyDiv.appendChild(historyList);
+            
+            // Add click handler to toggle accordion
+            mainContent.style.cursor = 'pointer';
+            mainContent.addEventListener('click', () => {
+                if (expandedTrams.has(tramNumber)) {
+                    expandedTrams.delete(tramNumber);
+                    resultDiv.classList.remove('expanded');
+                    historyDiv.style.display = 'none';
+                } else {
+                    expandedTrams.add(tramNumber);
+                    resultDiv.classList.add('expanded');
+                    historyDiv.style.display = 'block';
+                }
+            });
+            
+            resultDiv.appendChild(mainContent);
+            resultDiv.appendChild(historyDiv);
+        } else {
+            // No history, just add main content
+            resultDiv.appendChild(mainContent);
+        }
+        
         resultsContainer.appendChild(resultDiv);
     });
     
@@ -402,6 +535,160 @@ function showError(message, show = true) {
     } else {
         errorMessage.style.display = 'none';
         errorMessage.textContent = '';
+    }
+}
+
+// Notification button click
+notificationBtn.addEventListener('click', async () => {
+    // Request permission if not already granted
+    if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                showError('Разрешение на уведомления не предоставлено');
+                return;
+            }
+        } else if (Notification.permission === 'denied') {
+            showError('Уведомления заблокированы. Разрешите уведомления в настройках браузера.');
+            return;
+        }
+    } else {
+        showError('Ваш браузер не поддерживает уведомления');
+        return;
+    }
+    
+    // Show notification setup
+    notificationSetup.style.display = 'block';
+    notificationSetup.scrollIntoView({ behavior: 'smooth' });
+});
+
+// Cancel notification setup
+cancelNotificationBtn.addEventListener('click', () => {
+    notificationSetup.style.display = 'none';
+});
+
+// Confirm notification
+confirmNotificationBtn.addEventListener('click', () => {
+    const minutes = parseInt(notifyTimeSelect.value);
+    const tramNumber = notifyTramSelect.value;
+    
+    if (!tramNumber) {
+        alert('Выберите трамвай');
+        return;
+    }
+    
+    // Add to active notifications
+    const notification = {
+        id: Date.now(),
+        tramNumber,
+        minutes,
+        stopName: selectedDeparture.name
+    };
+    
+    activeNotifications.push(notification);
+    
+    // Reset notified set for this tram
+    notifiedTrams.delete(`${tramNumber}_${minutes}`);
+    
+    // Update display
+    updateActiveNotificationsDisplay();
+    
+    // Hide setup form
+    notificationSetup.style.display = 'none';
+    
+    // Show success message
+    showError(`✓ Оповещение настроено для трамвая ${tramNumber}`, true);
+    setTimeout(() => showError('', false), 3000);
+});
+
+// Update active notifications display
+function updateActiveNotificationsDisplay() {
+    if (activeNotifications.length === 0) {
+        activeNotificationsDiv.style.display = 'none';
+        return;
+    }
+    
+    activeNotificationsDiv.style.display = 'block';
+    notificationsList.innerHTML = '';
+    
+    activeNotifications.forEach(notif => {
+        const div = document.createElement('div');
+        div.className = 'notification-item';
+        
+        const info = document.createElement('div');
+        info.className = 'notification-info';
+        info.innerHTML = `<strong>Трамвай ${notif.tramNumber}</strong><br>Оповестить за ${notif.minutes} мин`;
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-notification-btn';
+        removeBtn.textContent = 'Удалить';
+        removeBtn.addEventListener('click', () => removeNotification(notif.id));
+        
+        div.appendChild(info);
+        div.appendChild(removeBtn);
+        notificationsList.appendChild(div);
+    });
+}
+
+// Remove notification
+function removeNotification(id) {
+    activeNotifications = activeNotifications.filter(n => n.id !== id);
+    updateActiveNotificationsDisplay();
+}
+
+// Check notifications
+function checkNotifications(data) {
+    if (activeNotifications.length === 0 || !data.routePath) {
+        return;
+    }
+    
+    activeNotifications.forEach(notif => {
+        const route = data.routePath.find(r => r.number === notif.tramNumber);
+        
+        if (!route || !route.externalForecast) {
+            return;
+        }
+        
+        // Find earliest arrival time
+        let minTime = Infinity;
+        route.externalForecast.forEach(forecast => {
+            if (forecast.time < minTime) {
+                minTime = forecast.time;
+            }
+        });
+        
+        if (minTime === Infinity) {
+            return;
+        }
+        
+        const arrivalMinutes = Math.round(minTime / 60);
+        const notifKey = `${notif.tramNumber}_${notif.minutes}`;
+        
+        // Check if we should notify
+        if (arrivalMinutes <= notif.minutes && !notifiedTrams.has(notifKey)) {
+            // Send notification
+            sendBrowserNotification(notif, arrivalMinutes);
+            
+            // Mark as notified
+            notifiedTrams.add(notifKey);
+            
+            // Auto-remove notification after sending
+            setTimeout(() => {
+                removeNotification(notif.id);
+            }, 5000);
+        }
+    });
+}
+
+// Send browser notification
+function sendBrowserNotification(notif, arrivalMinutes) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🚊 Радар трамваев Москвы', {
+            body: `Трамвай ${notif.tramNumber} прибывает через ${arrivalMinutes} мин на остановку ${notif.stopName}`,
+            icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚊</text></svg>',
+            requireInteraction: false,
+            tag: `tram-${notif.tramNumber}`
+        });
     }
 }
 

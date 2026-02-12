@@ -45,9 +45,44 @@
                 <button id="monitoring-btn" class="monitoring-btn monitoring-btn-off" disabled>
                     МОНИТОРИНГ
                 </button>
+                
+                <button id="notification-btn" class="notification-btn" style="display: none;">
+                    🔔 Оповестить
+                </button>
             </div>
 
             <div id="error-message" class="error-message" style="display: none;"></div>
+            
+            <div id="notification-setup" class="notification-setup" style="display: none;">
+                <h3>Настройка оповещения</h3>
+                <div class="notification-form">
+                    <div class="form-group-inline">
+                        <label for="notify-time">Оповестить за:</label>
+                        <select id="notify-time" class="notify-select">
+                            <option value="1">1 минуту</option>
+                            <option value="2">2 минуты</option>
+                            <option value="3" selected>3 минуты</option>
+                            <option value="5">5 минут</option>
+                            <option value="10">10 минут</option>
+                            <option value="15">15 минут</option>
+                        </select>
+                    </div>
+                    <div class="form-group-inline">
+                        <label for="notify-tram">Трамвай:</label>
+                        <select id="notify-tram" class="notify-select">
+                            <option value="">Выберите...</option>
+                        </select>
+                    </div>
+                    <div class="notification-actions">
+                        <button id="confirm-notification-btn" class="confirm-notification-btn">Включить</button>
+                        <button id="cancel-notification-btn" class="cancel-notification-btn">Отмена</button>
+                    </div>
+                </div>
+                <div id="active-notifications" class="active-notifications" style="display: none;">
+                    <h4>Активные оповещения:</h4>
+                    <div id="notifications-list"></div>
+                </div>
+            </div>
 
             <div id="results-section" class="results-section" style="display: none;">
                 <h2>Расписание</h2>

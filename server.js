@@ -13,6 +13,11 @@ app.use(express.static('public'));
 
 // Load stops data
 let stopsData = null;
+
+// In-memory storage for tracking trams and arrival history
+// Structure: { stopId: { tramNumber: { currentTrams: Set, history: Array } } }
+const tramTracking = new Map();
+const MAX_HISTORY_ITEMS = 3;
 async function loadStops() {
   try {
     const data = await fs.readFile(path.join(__dirname, 'stops.json'), 'utf8');
@@ -178,6 +183,108 @@ app.post('/api/stops/import', async (req, res) => {
       error: 'Ошибка при добавлении остановки',
       details: error.message 
     });
+  }
+});
+
+// API endpoint to track trams (called by frontend during monitoring)
+app.post('/api/track/:uuid', async (req, res) => {
+  const { uuid } = req.params;
+  const { routePath } = req.body;
+  
+  if (!uuid || !routePath) {
+    return res.status(400).json({ error: 'UUID and routePath required' });
+  }
+  
+  try {
+    if (!tramTracking.has(uuid)) {
+      tramTracking.set(uuid, new Map());
+    }
+    
+    const stopTracking = tramTracking.get(uuid);
+    const currentTime = new Date().toISOString();
+    
+    // Process each route
+    routePath.forEach(route => {
+      const tramNumber = route.number;
+      
+      if (!stopTracking.has(tramNumber)) {
+        stopTracking.set(tramNumber, {
+          currentTrams: new Set(),
+          history: []
+        });
+      }
+      
+      const tramData = stopTracking.get(tramNumber);
+      const previousTrams = new Set(tramData.currentTrams);
+      const newTrams = new Set();
+      
+      // Track trams from GPS data only
+      if (route.externalForecast) {
+        route.externalForecast.forEach(forecast => {
+          if (forecast.byTelemetry === 1) {
+            // Use a combination of time and vehicle ID as unique identifier
+            const tramId = `${forecast.time}_${forecast.vehicleId || ''}`;
+            newTrams.add(tramId);
+          }
+        });
+      }
+      
+      // Find trams that disappeared (arrived)
+      previousTrams.forEach(tramId => {
+        if (!newTrams.has(tramId)) {
+          // Tram has arrived!
+          const arrivalTime = new Date();
+          tramData.history.unshift({
+            time: arrivalTime.toISOString(),
+            displayTime: arrivalTime.toLocaleTimeString('ru-RU', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })
+          });
+          
+          // Keep only last N arrivals
+          if (tramData.history.length > MAX_HISTORY_ITEMS) {
+            tramData.history = tramData.history.slice(0, MAX_HISTORY_ITEMS);
+          }
+        }
+      });
+      
+      // Update current trams
+      tramData.currentTrams = newTrams;
+    });
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('Error tracking trams:', error);
+    res.status(500).json({ error: 'Ошибка отслеживания' });
+  }
+});
+
+// API endpoint to get arrival history
+app.get('/api/history/:uuid', (req, res) => {
+  const { uuid } = req.params;
+  
+  try {
+    if (!tramTracking.has(uuid)) {
+      return res.json({});
+    }
+    
+    const stopTracking = tramTracking.get(uuid);
+    const history = {};
+    
+    // Convert Map to object for JSON response
+    stopTracking.forEach((data, tramNumber) => {
+      if (data.history.length > 0) {
+        history[tramNumber] = data.history;
+      }
+    });
+    
+    res.json(history);
+    
+  } catch (error) {
+    console.error('Error getting history:', error);
+    res.status(500).json({ error: 'Ошибка получения истории' });
   }
 });
 

@@ -240,6 +240,148 @@ label {
     opacity: 0.5;
 }
 
+.notification-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border: 2px solid var(--accent-green);
+    background-color: transparent;
+    color: var(--accent-green);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 10px;
+}
+
+.notification-btn:hover {
+    background-color: var(--accent-green);
+    color: white;
+}
+
+.notification-setup {
+    background-color: var(--bg-secondary);
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.notification-setup h3 {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: var(--text-primary);
+}
+
+.notification-setup h4 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+.notification-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.form-group-inline label {
+    min-width: 120px;
+    margin-bottom: 0;
+}
+
+.notify-select {
+    flex: 1;
+    padding: 10px 12px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.confirm-notification-btn, .cancel-notification-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirm-notification-btn {
+    background-color: var(--accent-green);
+    color: white;
+}
+
+.confirm-notification-btn:hover {
+    background-color: var(--accent-green-hover);
+}
+
+.cancel-notification-btn {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.cancel-notification-btn:hover {
+    background-color: var(--bg-primary);
+}
+
+.active-notifications {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.notification-item {
+    background-color: var(--bg-tertiary);
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.notification-info {
+    flex: 1;
+}
+
+.notification-info strong {
+    color: var(--accent-green);
+    font-size: 1.1rem;
+}
+
+.remove-notification-btn {
+    padding: 6px 12px;
+    background-color: var(--error-bg);
+    color: var(--error-color);
+    border: 1px solid var(--error-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.remove-notification-btn:hover {
+    background-color: #8b3a3a;
+}
+
 .error-message {
     background-color: var(--error-bg);
     color: var(--error-color);
@@ -271,15 +413,17 @@ label {
     background-color: var(--bg-tertiary);
     padding: 10px 12px;
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
     transition: background-color 0.2s;
 }
 
-.tram-result:hover {
+.tram-result.expanded {
     background-color: #454545;
+}
+
+.tram-main-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .tram-number {
@@ -294,6 +438,45 @@ label {
     flex-wrap: wrap;
     gap: 8px;
     flex: 1;
+}
+
+.tram-history {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 100px;
+    }
+}
+
+.history-title {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.history-list {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.history-item {
+    background-color: var(--bg-primary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
 }
 
 .time-badge {
@@ -414,6 +597,25 @@ footer p {
     .add-stop-btn {
         width: 100%;
     }
+    
+    .form-group-inline {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .form-group-inline label {
+        min-width: auto;
+    }
+    
+    .notification-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .remove-notification-btn {
+        width: 100%;
+    }
 
     .monitoring-btn {
         font-size: 1.2rem;
@@ -426,6 +628,10 @@ footer p {
     }
 
     .tram-result {
+        padding: 12px;
+    }
+    
+    .tram-main-content {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
