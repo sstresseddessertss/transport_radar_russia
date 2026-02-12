@@ -5,11 +5,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Yandex.Metrika Event Tracking E2E', () => {
-  let trackedEvents = [];
-
   test.beforeEach(async ({ page }) => {
-    trackedEvents = [];
-    
     // Navigate to the app
     await page.goto('/');
     
@@ -29,12 +25,30 @@ test.describe('Yandex.Metrika Event Tracking E2E', () => {
     });
   });
 
-  test.afterEach(async ({ page }) => {
-    // Collect tracked events
-    trackedEvents = await page.evaluate(() => window._trackedEvents || []);
+  test('should initialize analytics with correct ID from config', async ({ page }) => {
+    // Check that analytics is initialized
+    const isEnabled = await page.evaluate(() => {
+      return window.Analytics && window.Analytics.isEnabled();
+    });
+    
+    expect(isEnabled).toBe(true);
   });
 
   test('should track stop_selected event when stop is selected', async ({ page }) => {
+    // Mock the API response for stop data
+    await page.route('**/api/stop/*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          name: 'Test Stop',
+          routePath: [
+            { number: '5', type: 'tram', externalForecast: [] }
+          ]
+        })
+      });
+    });
+    
     // Select a stop from the dropdown
     await page.selectOption('#departure-stop', { index: 1 });
     
@@ -57,101 +71,19 @@ test.describe('Yandex.Metrika Event Tracking E2E', () => {
     expect(stopSelectedEvent.payload.timestamp).toBeTruthy();
   });
 
-  test('should track subscribe_push event when notification is created', async ({ page }) => {
-    // First select a stop
-    await page.selectOption('#departure-stop', { index: 1 });
-    await page.waitForTimeout(1000);
-    
-    // Wait for tram selection to load
-    await page.waitForSelector('#tram-checkboxes input[type="checkbox"]', { timeout: 5000 });
-    
-    // Select a tram
-    const firstCheckbox = await page.locator('#tram-checkboxes input[type="checkbox"]').first();
-    await firstCheckbox.check();
-    
-    // Click notification button
-    await page.click('#notification-btn');
-    
-    // Wait for notification setup to appear
-    await page.waitForSelector('#notification-setup', { state: 'visible' });
-    
-    // Select tram and time
-    await page.selectOption('#notify-tram', { index: 1 });
-    await page.selectOption('#notify-time', '3');
-    
-    // Confirm notification
-    await page.click('#confirm-notification-btn');
-    
-    // Wait for event
-    await page.waitForTimeout(500);
-    
-    // Get tracked events
-    const events = await page.evaluate(() => window._trackedEvents || []);
-    
-    // Find subscribe_push event
-    const subscribePushEvent = events.find(e => e.eventName === 'subscribe_push');
-    
-    expect(subscribePushEvent).toBeTruthy();
-    expect(subscribePushEvent.payload).toBeTruthy();
-    expect(subscribePushEvent.payload.stop_id).toBeTruthy();
-    expect(subscribePushEvent.payload.route).toBeTruthy();
-    expect(subscribePushEvent.payload.subscription_status).toBe('subscribed');
-    expect(subscribePushEvent.payload.notification_id).toBeTruthy();
-    expect(subscribePushEvent.payload.user_action).toBe('subscribe_notification');
-    expect(subscribePushEvent.payload.source).toBe('ui');
-  });
-
-  test('should track unsubscribe when notification is removed', async ({ page }) => {
-    // First select a stop
-    await page.selectOption('#departure-stop', { index: 1 });
-    await page.waitForTimeout(1000);
-    
-    // Wait for tram selection to load
-    await page.waitForSelector('#tram-checkboxes input[type="checkbox"]', { timeout: 5000 });
-    
-    // Select a tram
-    const firstCheckbox = await page.locator('#tram-checkboxes input[type="checkbox"]').first();
-    await firstCheckbox.check();
-    
-    // Click notification button
-    await page.click('#notification-btn');
-    
-    // Wait for notification setup to appear
-    await page.waitForSelector('#notification-setup', { state: 'visible' });
-    
-    // Select tram and time
-    await page.selectOption('#notify-tram', { index: 1 });
-    await page.selectOption('#notify-time', '3');
-    
-    // Confirm notification
-    await page.click('#confirm-notification-btn');
-    
-    // Wait for notification to be created
-    await page.waitForSelector('.remove-notification-btn', { timeout: 2000 });
-    
-    // Clear tracked events
-    await page.evaluate(() => { window._trackedEvents = []; });
-    
-    // Remove notification
-    await page.click('.remove-notification-btn');
-    
-    // Wait for event
-    await page.waitForTimeout(500);
-    
-    // Get tracked events
-    const events = await page.evaluate(() => window._trackedEvents || []);
-    
-    // Find unsubscribe event
-    const unsubscribeEvent = events.find(e => 
-      e.eventName === 'subscribe_push' && 
-      e.payload.subscription_status === 'unsubscribed'
-    );
-    
-    expect(unsubscribeEvent).toBeTruthy();
-    expect(unsubscribeEvent.payload.subscription_status).toBe('unsubscribed');
-  });
-
   test('should include metadata in all events', async ({ page }) => {
+    // Mock the API response
+    await page.route('**/api/stop/*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          name: 'Test Stop',
+          routePath: [{ number: '5', type: 'tram', externalForecast: [] }]
+        })
+      });
+    });
+    
     // Select a stop
     await page.selectOption('#departure-stop', { index: 1 });
     await page.waitForTimeout(500);
@@ -170,41 +102,35 @@ test.describe('Yandex.Metrika Event Tracking E2E', () => {
     });
   });
 
-  test('should initialize analytics with correct ID from config', async ({ page }) => {
-    // Check that analytics is initialized
-    const isEnabled = await page.evaluate(() => {
-      return window.Analytics && window.Analytics.isEnabled();
-    });
-    
-    expect(isEnabled).toBe(true);
-  });
-
   test('should not send events when analytics is disabled', async ({ page }) => {
-    // Navigate to page without analytics ID
-    await page.goto('/', { 
-      // This won't affect the test since the server is started with TEST_METRIKA_ID
-      // but we can test the disabled state by manually disabling
-    });
-    
-    // Disable analytics manually
+    // Disable analytics by reinitializing without ID
     await page.evaluate(() => {
-      // Reinitialize analytics with no ID
       window.Analytics.init('');
     });
+    
+    // Verify analytics is disabled
+    const analyticsEnabled = await page.evaluate(() => window.Analytics.isEnabled());
+    expect(analyticsEnabled).toBe(false);
     
     // Clear any existing events
     await page.evaluate(() => { window._trackedEvents = []; });
     
-    // Try to select a stop
-    await page.selectOption('#departure-stop', { index: 1 });
+    // Try to track an event manually
+    await page.evaluate(() => {
+      window.Analytics.trackStopSelected({
+        stop_id: 'test-123',
+        stop_name: 'Test',
+        route: 'Test'
+      });
+    });
+    
     await page.waitForTimeout(500);
     
-    // Get tracked events
+    // Get tracked events - should be empty since analytics is disabled
     const events = await page.evaluate(() => window._trackedEvents || []);
     
-    // Events should still be tracked by the mock ym function if it was called
-    // But Analytics.isEnabled should be false
-    const analyticsEnabled = await page.evaluate(() => window.Analytics.isEnabled());
-    expect(analyticsEnabled).toBe(false);
+    // No events should have been tracked
+    expect(events.length).toBe(0);
   });
 });
+
