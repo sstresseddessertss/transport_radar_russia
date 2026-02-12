@@ -122,6 +122,53 @@ transport_radar_russia/
 - **API:** moscowtransport.app
 - **Стиль:** Современный темный интерфейс, адаптивная верстка
 
+## API Endpoints
+
+### GET /api/stops
+Получить список всех доступных остановок.
+
+### GET /api/stop/:uuid
+Получить данные о конкретной остановке и расписание трамваев.
+
+### GET /api/stops/:stopId/vehicles
+Получить список транспортных средств для остановки с информацией о позиции и времени прибытия.
+
+**Параметры запроса:**
+- `page` (optional, default: 1) - Номер страницы
+- `page_size` (optional, default: 50, max: 100) - Количество элементов на странице
+- `include_positions` (optional, default: true) - Включать координаты позиции
+
+**Пример:**
+```bash
+curl "http://localhost:3000/api/stops/760d1406-363e-4b1a-a604-a6c75db93493/vehicles?page=1&page_size=20"
+```
+
+**Ответ:**
+```json
+{
+  "data": [
+    {
+      "vehicle_id": "vehicle_123",
+      "run_id": "run_001",
+      "lat": 55.7558,
+      "lon": 37.6173,
+      "eta_seconds": 180,
+      "eta_human": "3 мин",
+      "status": "approaching",
+      "last_update": "2026-02-12T12:30:00Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total_pages": 1,
+    "total_items": 5
+  }
+}
+```
+
+Подробную документацию API смотрите в [docs/changelog.md](docs/changelog.md).
+
 ## Возможные ошибки
 
 ### Ошибка 477: "API недоступен"

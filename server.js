@@ -24,6 +24,15 @@ const importRateLimit = new Map();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const MAX_IMPORTS_PER_WINDOW = 10;
 
+// In-memory cache for vehicles endpoint
+const vehiclesCache = new Map();
+const VEHICLES_CACHE_TTL = parseInt(process.env.VEHICLES_CACHE_TTL) || 10000; // 10 seconds
+
+// Rate limiting for vehicles endpoint
+const vehiclesRateLimit = new Map();
+const VEHICLES_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_VEHICLES_REQUESTS_PER_WINDOW = 60; // 60 requests per minute
+
 function checkRateLimit(ip) {
   const now = Date.now();
   
@@ -44,6 +53,78 @@ function checkRateLimit(ip) {
   importRateLimit.set(ip, recentRequests);
   
   return true;
+}
+
+function checkVehiclesRateLimit(ip) {
+  const now = Date.now();
+  
+  if (!vehiclesRateLimit.has(ip)) {
+    vehiclesRateLimit.set(ip, []);
+  }
+  
+  const requests = vehiclesRateLimit.get(ip);
+  
+  // Remove old requests outside the time window
+  const recentRequests = requests.filter(time => now - time < VEHICLES_RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= MAX_VEHICLES_REQUESTS_PER_WINDOW) {
+    return false;
+  }
+  
+  recentRequests.push(now);
+  vehiclesRateLimit.set(ip, recentRequests);
+  
+  return true;
+}
+
+// Helper function to format ETA in human-readable format
+function formatEtaHuman(etaSeconds) {
+  if (etaSeconds < 60) {
+    return `${etaSeconds} сек`;
+  }
+  const minutes = Math.floor(etaSeconds / 60);
+  if (minutes === 1) {
+    return '1 мин';
+  }
+  return `${minutes} мин`;
+}
+
+// Mock vehicle data generator (simulates real vehicle positions)
+function generateMockVehicles(stopId, includePositions = true) {
+  // Generate 3-8 random vehicles for demo purposes
+  const vehicleCount = Math.floor(Math.random() * 6) + 3;
+  const vehicles = [];
+  
+  const statuses = ['approaching', 'boarding', 'departed', 'delayed'];
+  const baseRunIds = ['run_001', 'run_002', 'run_003', 'run_004', 'run_005'];
+  
+  for (let i = 0; i < vehicleCount; i++) {
+    const etaSeconds = Math.floor(Math.random() * 1200) + 30; // 30 seconds to 20 minutes
+    const statusIndex = Math.floor(Math.random() * statuses.length);
+    
+    const vehicle = {
+      vehicle_id: `vehicle_${stopId.substring(0, 8)}_${i}`,
+      run_id: baseRunIds[i % baseRunIds.length],
+      eta_seconds: etaSeconds,
+      eta_human: formatEtaHuman(etaSeconds),
+      status: statuses[statusIndex],
+      last_update: new Date().toISOString()
+    };
+    
+    // Include position data if requested
+    if (includePositions) {
+      // Moscow coordinates (approximately)
+      vehicle.lat = 55.7558 + (Math.random() - 0.5) * 0.1;
+      vehicle.lon = 37.6173 + (Math.random() - 0.5) * 0.1;
+    }
+    
+    vehicles.push(vehicle);
+  }
+  
+  // Sort by ETA (ascending)
+  vehicles.sort((a, b) => a.eta_seconds - b.eta_seconds);
+  
+  return vehicles;
 }
 async function loadStops() {
   try {
@@ -113,6 +194,88 @@ app.get('/api/stop/:uuid', async (req, res) => {
       details: error.message 
     });
   }
+});
+
+// API endpoint to get vehicles for a stop
+// GET /api/stops/:stopId/vehicles?page=1&page_size=50&include_positions=true
+app.get('/api/stops/:stopId/vehicles', (req, res) => {
+  const { stopId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.page_size) || 50;
+  const includePositions = req.query.include_positions !== 'false'; // Default true
+  
+  // Validate stopId exists
+  if (!stopsData || !stopsData.stops) {
+    return res.status(500).json({ error: 'Stops data not loaded' });
+  }
+  
+  const stopExists = stopsData.stops.some(stop => stop.uuid === stopId);
+  if (!stopExists) {
+    return res.status(404).json({ 
+      error: 'Stop not found',
+      stopId: stopId
+    });
+  }
+  
+  // Rate limiting check
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkVehiclesRateLimit(clientIp)) {
+    return res.status(429).json({ 
+      error: 'Слишком много запросов. Попробуйте позже.' 
+    });
+  }
+  
+  // Validate pagination parameters
+  if (page < 1) {
+    return res.status(400).json({ error: 'Page must be >= 1' });
+  }
+  if (pageSize < 1 || pageSize > 100) {
+    return res.status(400).json({ error: 'Page size must be between 1 and 100' });
+  }
+  
+  // Check cache
+  const cacheKey = `${stopId}_${includePositions}`;
+  const now = Date.now();
+  
+  let allVehicles;
+  if (vehiclesCache.has(cacheKey)) {
+    const cached = vehiclesCache.get(cacheKey);
+    if (now - cached.timestamp < VEHICLES_CACHE_TTL) {
+      allVehicles = cached.data;
+    } else {
+      // Cache expired, remove it
+      vehiclesCache.delete(cacheKey);
+    }
+  }
+  
+  // Generate fresh data if not in cache
+  if (!allVehicles) {
+    allVehicles = generateMockVehicles(stopId, includePositions);
+    vehiclesCache.set(cacheKey, {
+      data: allVehicles,
+      timestamp: now
+    });
+  }
+  
+  // Apply pagination
+  const totalItems = allVehicles.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedVehicles = allVehicles.slice(startIndex, endIndex);
+  
+  // Build response
+  const response = {
+    data: paginatedVehicles,
+    meta: {
+      page: page,
+      page_size: pageSize,
+      total_pages: totalPages,
+      total_items: totalItems
+    }
+  };
+  
+  res.json(response);
 });
 
 // API endpoint to add a stop by URL
