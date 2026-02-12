@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "jest",
     "test:push": "node tests/push-emulation/send-push.test.js"
   },
   "keywords": [
@@ -21,9 +20,6 @@
   "dependencies": {
     "express": "^4.18.2",
     "web-push": "^3.6.7"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0"
   },
   "engines": {
     "node": ">=18.0.0"
