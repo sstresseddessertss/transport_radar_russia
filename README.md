@@ -138,6 +138,38 @@ transport_radar_russia/
 - Проверьте корректность JSON-синтаксиса в `stops.json`
 - Убедитесь, что файл существует в корне проекта
 
+## Continuous Integration
+
+This project uses GitHub Actions for automated testing and code quality checks.
+
+### Workflows
+
+- **Smoke CI**: Runs linting, unit tests, and push notification emulation tests
+- **Status**: Check the Actions tab for current build status
+
+### Running CI Tests Locally
+
+See [docs/ci.md](docs/ci.md) for detailed instructions on:
+- Setting up environment variables
+- Running tests locally
+- Generating VAPID keys for push notifications
+- Troubleshooting CI failures
+
+Quick start:
+```bash
+# Install dependencies
+npm install
+
+# Run linter
+npm run lint
+
+# Run tests
+npm test
+
+# Run push emulation test (requires VAPID keys in environment)
+npm run test:push-emulation
+```
+
 ## Лицензия
 
 MIT
