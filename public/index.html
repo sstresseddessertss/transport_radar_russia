@@ -46,6 +46,10 @@
                     МОНИТОРИНГ
                 </button>
                 
+                <button id="view-vehicles-btn" class="view-vehicles-btn" style="display: none;">
+                    🚊 Посмотреть транспорт
+                </button>
+                
                 <button id="notification-btn" class="notification-btn" style="display: none;">
                     🔔 Оповестить
                 </button>
@@ -99,6 +103,42 @@
                 </div>
             </div>
         </main>
+
+        <!-- Vehicles Panel Modal -->
+        <div id="vehicles-modal" class="vehicles-modal" style="display: none;" role="dialog" aria-labelledby="vehicles-modal-title" aria-modal="true">
+            <div class="vehicles-modal-content">
+                <div class="vehicles-modal-header">
+                    <h2 id="vehicles-modal-title">Транспорт на остановке</h2>
+                    <button id="close-vehicles-modal" class="close-btn" aria-label="Закрыть">×</button>
+                </div>
+                <div class="vehicles-modal-body">
+                    <div id="vehicles-loading" class="vehicles-loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Загрузка...</p>
+                    </div>
+                    <div id="vehicles-error" class="vehicles-error" style="display: none;"></div>
+                    <div id="vehicles-list" class="vehicles-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                    <div id="vehicles-empty" class="vehicles-empty" style="display: none;">
+                        <p>Нет доступных транспортных средств</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vehicle Detail Panel -->
+        <div id="vehicle-detail-panel" class="vehicle-detail-panel" style="display: none;" role="dialog" aria-labelledby="vehicle-detail-title" aria-modal="true">
+            <div class="vehicle-detail-content">
+                <div class="vehicle-detail-header">
+                    <h3 id="vehicle-detail-title">Информация о транспорте</h3>
+                    <button id="close-vehicle-detail" class="close-btn" aria-label="Закрыть">×</button>
+                </div>
+                <div class="vehicle-detail-body" id="vehicle-detail-body">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
 
         <footer>
             <p>Данные предоставлены moscowtransport.app</p>

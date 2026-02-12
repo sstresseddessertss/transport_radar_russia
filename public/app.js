@@ -705,5 +705,256 @@ function sendBrowserNotification(notif, arrivalMinutes) {
     }
 }
 
+// ========== VEHICLES ENDPOINT INTEGRATION ==========
+
+// Vehicles state
+let vehiclesPollingInterval = null;
+let currentVehiclesStopId = null;
+const VEHICLES_POLL_INTERVAL = 15000; // 15 seconds
+
+// DOM elements for vehicles
+const viewVehiclesBtn = document.getElementById('view-vehicles-btn');
+const vehiclesModal = document.getElementById('vehicles-modal');
+const closeVehiclesModal = document.getElementById('close-vehicles-modal');
+const vehiclesList = document.getElementById('vehicles-list');
+const vehiclesLoading = document.getElementById('vehicles-loading');
+const vehiclesError = document.getElementById('vehicles-error');
+const vehiclesEmpty = document.getElementById('vehicles-empty');
+const vehicleDetailPanel = document.getElementById('vehicle-detail-panel');
+const closeVehicleDetail = document.getElementById('close-vehicle-detail');
+const vehicleDetailBody = document.getElementById('vehicle-detail-body');
+
+// Show "View Vehicles" button when stop is selected
+departureSelect.addEventListener('change', () => {
+    if (departureSelect.value) {
+        viewVehiclesBtn.style.display = 'block';
+    } else {
+        viewVehiclesBtn.style.display = 'none';
+    }
+});
+
+// Open vehicles modal
+viewVehiclesBtn.addEventListener('click', () => {
+    if (selectedDeparture) {
+        openVehiclesModal(selectedDeparture.uuid);
+    }
+});
+
+// Close vehicles modal
+closeVehiclesModal.addEventListener('click', closeVehiclesModalHandler);
+vehiclesModal.addEventListener('click', (e) => {
+    if (e.target === vehiclesModal) {
+        closeVehiclesModalHandler();
+    }
+});
+
+// Keyboard accessibility for modal
+vehiclesModal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeVehiclesModalHandler();
+    }
+});
+
+function closeVehiclesModalHandler() {
+    vehiclesModal.style.display = 'none';
+    stopVehiclesPolling();
+    currentVehiclesStopId = null;
+}
+
+// Close vehicle detail panel
+closeVehicleDetail.addEventListener('click', () => {
+    vehicleDetailPanel.style.display = 'none';
+});
+
+vehicleDetailPanel.addEventListener('click', (e) => {
+    if (e.target === vehicleDetailPanel) {
+        vehicleDetailPanel.style.display = 'none';
+    }
+});
+
+// Keyboard accessibility for detail panel
+vehicleDetailPanel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        vehicleDetailPanel.style.display = 'none';
+    }
+});
+
+// Open vehicles modal and start polling
+function openVehiclesModal(stopId) {
+    currentVehiclesStopId = stopId;
+    vehiclesModal.style.display = 'flex';
+    
+    // Reset state
+    vehiclesError.style.display = 'none';
+    vehiclesEmpty.style.display = 'none';
+    vehiclesList.innerHTML = '';
+    
+    // Load vehicles
+    loadVehicles(stopId);
+    
+    // Start polling
+    startVehiclesPolling(stopId);
+}
+
+// Fetch vehicles from API
+async function loadVehicles(stopId) {
+    try {
+        vehiclesLoading.style.display = 'block';
+        vehiclesError.style.display = 'none';
+        vehiclesEmpty.style.display = 'none';
+        
+        const response = await fetch(`/api/stops/${stopId}/vehicles?page=1&page_size=50&include_positions=true`);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Остановка не найдена');
+            } else if (response.status === 429) {
+                throw new Error('Слишком много запросов. Попробуйте позже.');
+            }
+            throw new Error(`Ошибка загрузки: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        vehiclesLoading.style.display = 'none';
+        
+        if (!data.data || data.data.length === 0) {
+            vehiclesEmpty.style.display = 'block';
+            vehiclesList.innerHTML = '';
+        } else {
+            vehiclesEmpty.style.display = 'none';
+            renderVehicles(data.data);
+        }
+        
+    } catch (error) {
+        vehiclesLoading.style.display = 'none';
+        vehiclesError.style.display = 'block';
+        vehiclesError.textContent = error.message;
+        vehiclesList.innerHTML = '';
+    }
+}
+
+// Render vehicles list
+function renderVehicles(vehicles) {
+    vehiclesList.innerHTML = '';
+    
+    vehicles.forEach(vehicle => {
+        const vehicleItem = document.createElement('div');
+        vehicleItem.className = 'vehicle-item';
+        vehicleItem.tabIndex = 0;
+        vehicleItem.setAttribute('role', 'button');
+        vehicleItem.setAttribute('aria-label', `Транспорт ${vehicle.vehicle_id}, прибытие через ${vehicle.eta_human}`);
+        
+        const statusClass = `status-${vehicle.status}`;
+        const statusText = getStatusText(vehicle.status);
+        
+        const positionHTML = vehicle.lat && vehicle.lon 
+            ? `<span class="vehicle-position">📍 ${vehicle.lat.toFixed(4)}, ${vehicle.lon.toFixed(4)}</span>`
+            : '';
+        
+        vehicleItem.innerHTML = `
+            <div class="vehicle-header">
+                <div class="vehicle-id">🚊 ${vehicle.vehicle_id}</div>
+                <div class="vehicle-eta">
+                    <span class="eta-badge">${vehicle.eta_human}</span>
+                </div>
+            </div>
+            <div class="vehicle-info">
+                <span>Рейс: ${vehicle.run_id}</span>
+                <span class="vehicle-status ${statusClass}">${statusText}</span>
+                ${positionHTML}
+            </div>
+        `;
+        
+        // Click handler to show details
+        vehicleItem.addEventListener('click', () => showVehicleDetail(vehicle));
+        vehicleItem.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                showVehicleDetail(vehicle);
+            }
+        });
+        
+        vehiclesList.appendChild(vehicleItem);
+    });
+}
+
+// Get status text in Russian
+function getStatusText(status) {
+    const statusMap = {
+        'approaching': 'Приближается',
+        'boarding': 'Посадка',
+        'departed': 'Отправился',
+        'delayed': 'Задержка'
+    };
+    return statusMap[status] || status;
+}
+
+// Show vehicle detail panel
+function showVehicleDetail(vehicle) {
+    const statusText = getStatusText(vehicle.status);
+    const lastUpdate = new Date(vehicle.last_update).toLocaleString('ru-RU');
+    
+    let detailHTML = `
+        <div class="detail-row">
+            <span class="detail-label">ID транспорта:</span>
+            <span class="detail-value">${vehicle.vehicle_id}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Рейс:</span>
+            <span class="detail-value">${vehicle.run_id}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Время прибытия:</span>
+            <span class="detail-value">${vehicle.eta_human} (${vehicle.eta_seconds} сек)</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Статус:</span>
+            <span class="detail-value">${statusText}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Последнее обновление:</span>
+            <span class="detail-value">${lastUpdate}</span>
+        </div>
+    `;
+    
+    if (vehicle.lat && vehicle.lon) {
+        detailHTML += `
+            <div class="position-map">
+                <div class="map-placeholder">
+                    🗺️ Позиция на карте
+                </div>
+                <div class="coordinates">
+                    Координаты: ${vehicle.lat.toFixed(6)}, ${vehicle.lon.toFixed(6)}
+                </div>
+            </div>
+        `;
+    }
+    
+    vehicleDetailBody.innerHTML = detailHTML;
+    vehicleDetailPanel.style.display = 'flex';
+}
+
+// Start polling for vehicle updates
+function startVehiclesPolling(stopId) {
+    stopVehiclesPolling(); // Clear any existing interval
+    
+    vehiclesPollingInterval = setInterval(() => {
+        if (currentVehiclesStopId === stopId && vehiclesModal.style.display === 'flex') {
+            loadVehicles(stopId);
+        } else {
+            stopVehiclesPolling();
+        }
+    }, VEHICLES_POLL_INTERVAL);
+}
+
+// Stop polling
+function stopVehiclesPolling() {
+    if (vehiclesPollingInterval) {
+        clearInterval(vehiclesPollingInterval);
+        vehiclesPollingInterval = null;
+    }
+}
+
 // Initialize on page load
 init();
