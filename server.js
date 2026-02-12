@@ -18,6 +18,33 @@ let stopsData = null;
 // Structure: { stopId: { tramNumber: { currentTrams: Set, history: Array } } }
 const tramTracking = new Map();
 const MAX_HISTORY_ITEMS = 3;
+
+// Simple rate limiting for stop import endpoint
+const importRateLimit = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_IMPORTS_PER_WINDOW = 10;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  
+  if (!importRateLimit.has(ip)) {
+    importRateLimit.set(ip, []);
+  }
+  
+  const requests = importRateLimit.get(ip);
+  
+  // Remove old requests outside the time window
+  const recentRequests = requests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= MAX_IMPORTS_PER_WINDOW) {
+    return false;
+  }
+  
+  recentRequests.push(now);
+  importRateLimit.set(ip, recentRequests);
+  
+  return true;
+}
 async function loadStops() {
   try {
     const data = await fs.readFile(path.join(__dirname, 'stops.json'), 'utf8');
@@ -91,6 +118,14 @@ app.get('/api/stop/:uuid', async (req, res) => {
 // API endpoint to add a stop by URL
 app.post('/api/stops/import', async (req, res) => {
   const { url } = req.body;
+  
+  // Rate limiting check
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({ 
+      error: 'Слишком много запросов. Попробуйте позже.' 
+    });
+  }
   
   if (!url) {
     return res.status(400).json({ error: 'URL параметр обязателен' });
