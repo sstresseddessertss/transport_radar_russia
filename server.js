@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const YANDEX_METRIKA_ID = process.env.YANDEX_METRIKA_ID || '';
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -55,6 +56,13 @@ async function loadStops() {
     process.exit(1);
   }
 }
+
+// API endpoint to get analytics configuration
+app.get('/api/config', (req, res) => {
+  res.json({
+    yandexMetrikaId: YANDEX_METRIKA_ID
+  });
+});
 
 // API endpoint to get stops list
 app.get('/api/stops', (req, res) => {

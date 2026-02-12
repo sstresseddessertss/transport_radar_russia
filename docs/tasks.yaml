@@ -1,0 +1,13 @@
+tasks:
+  - id: yandex-metrika-integration
+    title: Implement Yandex.Metrika Analytics Integration
+    description: Add analytics tracking for user interactions with transport monitoring
+    status: completed
+    date: 2026-02-12
+    features:
+      - Environment-based analytics configuration
+      - Frontend analytics wrapper API
+      - Event tracking for stop selection, push subscription, and notifications
+      - Unit and E2E test coverage
+    branch: feature/yandex-metrika
+    pr: pending
