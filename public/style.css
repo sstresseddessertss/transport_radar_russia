@@ -391,6 +391,15 @@ label {
     border-left: 4px solid var(--error-color);
 }
 
+.success-message {
+    background-color: rgba(76, 175, 80, 0.15);
+    color: var(--accent-green);
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid var(--accent-green);
+}
+
 .results-section {
     background-color: var(--bg-secondary);
     padding: 20px;

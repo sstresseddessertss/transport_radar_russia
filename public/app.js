@@ -538,6 +538,19 @@ function showError(message, show = true) {
     }
 }
 
+// Show message (info/success/error)
+function showMessage(message, type = 'info') {
+    if (!message) {
+        errorMessage.style.display = 'none';
+        errorMessage.className = 'error-message';
+        return;
+    }
+    
+    errorMessage.textContent = message;
+    errorMessage.className = type === 'success' ? 'success-message' : 'error-message';
+    errorMessage.style.display = 'block';
+}
+
 // Notification button click
 notificationBtn.addEventListener('click', async () => {
     // Request permission if not already granted
@@ -545,15 +558,15 @@ notificationBtn.addEventListener('click', async () => {
         if (Notification.permission === 'default') {
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
-                showError('Разрешение на уведомления не предоставлено');
+                showMessage('Разрешение на уведомления не предоставлено', 'error');
                 return;
             }
         } else if (Notification.permission === 'denied') {
-            showError('Уведомления заблокированы. Разрешите уведомления в настройках браузера.');
+            showMessage('Уведомления заблокированы. Разрешите уведомления в настройках браузера.', 'error');
             return;
         }
     } else {
-        showError('Ваш браузер не поддерживает уведомления');
+        showMessage('Ваш браузер не поддерживает уведомления', 'error');
         return;
     }
     
@@ -573,7 +586,7 @@ confirmNotificationBtn.addEventListener('click', () => {
     const tramNumber = notifyTramSelect.value;
     
     if (!tramNumber) {
-        alert('Выберите трамвай');
+        showMessage('Выберите трамвай', 'error');
         return;
     }
     
@@ -597,8 +610,8 @@ confirmNotificationBtn.addEventListener('click', () => {
     notificationSetup.style.display = 'none';
     
     // Show success message
-    showError(`✓ Оповещение настроено для трамвая ${tramNumber}`, true);
-    setTimeout(() => showError('', false), 3000);
+    showMessage(`✓ Оповещение настроено для трамвая ${tramNumber}`, 'success');
+    setTimeout(() => showMessage(''), 3000);
 });
 
 // Update active notifications display
