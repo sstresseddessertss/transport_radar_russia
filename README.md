@@ -31,6 +31,12 @@ cd transport_radar_russia
 npm install
 ```
 
+3. (Опционально) Настройте Yandex.Metrika для аналитики:
+```bash
+cp .env.example .env
+# Отредактируйте .env и добавьте ваш YANDEX_METRIKA_ID
+```
+
 ## Запуск
 
 Запустите сервер:
@@ -101,6 +107,45 @@ npm start
 npm start
 ```
 
+## Аналитика и мониторинг
+
+Приложение поддерживает интеграцию с Yandex.Metrika для отслеживания взаимодействий пользователей.
+
+### Настройка аналитики
+
+1. Создайте счетчик на [Yandex.Metrika](https://metrika.yandex.ru/)
+2. Скопируйте `.env.example` в `.env`:
+```bash
+cp .env.example .env
+```
+3. Добавьте ID вашего счетчика в `.env`:
+```
+YANDEX_METRIKA_ID=ваш_id_счетчика
+```
+
+### Отслеживаемые события
+
+Приложение автоматически отслеживает следующие действия пользователей:
+- **stop_selected**: Выбор остановки из списка
+- **subscribe_push**: Подписка на уведомления о прибытии трамвая
+- **notification_clicked**: Клик по браузерному уведомлению
+
+Все события включают контекстную информацию (ID остановки, маршрут, временные метки).
+
+## Тестирование
+
+Запуск тестов:
+```bash
+# Все тесты
+npm test
+
+# Только unit-тесты
+npm run test:unit
+
+# Только E2E тесты
+npm run test:e2e
+```
+
 ## Структура проекта
 
 ```
@@ -108,10 +153,17 @@ transport_radar_russia/
 ├── server.js              # Backend на Express
 ├── package.json           # Зависимости проекта
 ├── stops.json             # Конфигурация остановок
+├── .env.example           # Пример конфигурации
 ├── public/
 │   ├── index.html         # HTML-интерфейс
 │   ├── style.css          # Стили (темная тема)
-│   └── app.js             # Frontend логика
+│   ├── app.js             # Frontend логика
+│   └── analytics.js       # Wrapper для аналитики
+├── tests/                 # Тесты (Playwright)
+├── docs/                  # Документация
+│   ├── changelog.md       # История изменений
+│   ├── tasks.yaml         # Трекинг задач
+│   └── decisions.md       # Архитектурные решения
 └── README.md              # Документация
 ```
 
