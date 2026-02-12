@@ -1,0 +1,21 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`StopCard Component snapshot should match snapshot 1`] = `
+<div
+  aria-label="Остановка Тестовая остановка в направлении в сторону центра"
+  class="stop-card"
+  role="button"
+  tabindex="0"
+>
+  <div
+    class="stop-card-name"
+  >
+    Тестовая остановка
+  </div>
+  <div
+    class="stop-card-direction"
+  >
+    в сторону центра
+  </div>
+</div>
+`;

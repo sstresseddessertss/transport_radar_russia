@@ -683,3 +683,169 @@ footer p {
         gap: 10px;
     }
 }
+
+/* Component Styles */
+
+/* StopCard Component */
+.stop-card {
+    background-color: var(--bg-tertiary);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stop-card:hover {
+    background-color: var(--bg-primary);
+    border-color: var(--accent-green);
+}
+
+.stop-card:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
+    border-color: var(--accent-green);
+}
+
+.stop-card-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.stop-card-direction {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* ArrivalList Component */
+.arrival-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.arrival-item {
+    background-color: var(--bg-tertiary);
+    padding: 10px 12px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.arrival-main-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.arrival-main-content:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+    border-radius: 4px;
+}
+
+.arrival-tram-number {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: var(--accent-green);
+    min-width: 50px;
+}
+
+.arrival-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1;
+}
+
+.arrival-history {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    animation: slideDown 0.3s ease-out;
+}
+
+/* HistoryPagination Component */
+.history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 15px;
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.pagination-info {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.pagination-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.pagination-btn {
+    padding: 6px 12px;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--accent-green);
+}
+
+.pagination-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-btn.pagination-page {
+    min-width: 36px;
+    text-align: center;
+}
+
+.pagination-btn.pagination-page.active {
+    background-color: var(--accent-green);
+    color: white;
+    border-color: var(--accent-green);
+    font-weight: 600;
+}
+
+.pagination-ellipsis {
+    padding: 0 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+    .history-pagination {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .pagination-info {
+        text-align: center;
+    }
+    
+    .pagination-buttons {
+        justify-content: center;
+    }
+}

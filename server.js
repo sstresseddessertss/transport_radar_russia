@@ -236,7 +236,6 @@ app.post('/api/track/:uuid', async (req, res) => {
     }
     
     const stopTracking = tramTracking.get(uuid);
-    const currentTime = new Date().toISOString();
     
     // Process each route
     routePath.forEach(route => {
