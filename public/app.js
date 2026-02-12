@@ -10,6 +10,11 @@ const MAX_FETCH_FAILURES = 3;
 let expandedTrams = new Set(); // Track which tram blocks are expanded
 let arrivalHistory = {}; // Store arrival history for current stop
 
+// Service Worker and Push subscription state
+let swRegistration = null;
+let pushSubscription = null;
+let vapidPublicKey = null;
+
 // DOM elements
 const departureSelect = document.getElementById('departure-stop');
 const tramSelectionGroup = document.getElementById('tram-selection-group');
@@ -33,9 +38,136 @@ const notificationsList = document.getElementById('notifications-list');
 // Notification state
 let activeNotifications = [];
 let notifiedTrams = new Set(); // Track which trams have been notified to avoid spam
+let isPushSubscribed = false;
+
+// Register Service Worker and initialize push
+async function registerServiceWorker() {
+  if ('serviceWorker' in navigator && 'PushManager' in window) {
+    try {
+      swRegistration = await navigator.serviceWorker.register('/service-worker.js');
+      console.log('Service Worker registered:', swRegistration);
+      
+      // Get VAPID public key
+      const response = await fetch('/api/push/vapid-public-key');
+      const data = await response.json();
+      vapidPublicKey = data.publicKey;
+      
+      // Check if already subscribed
+      pushSubscription = await swRegistration.pushManager.getSubscription();
+      isPushSubscribed = pushSubscription !== null;
+      
+      console.log('Push subscription status:', isPushSubscribed);
+      
+    } catch (error) {
+      console.error('Service Worker registration failed:', error);
+    }
+  } else {
+    console.warn('Push notifications not supported in this browser');
+  }
+}
+
+// Convert VAPID key from base64 to Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+  
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Subscribe to push notifications
+async function subscribeToPush(notifyMinutes, tramNumbers) {
+  try {
+    if (!swRegistration) {
+      throw new Error('Service Worker не зарегистрирован');
+    }
+    
+    if (!vapidPublicKey) {
+      throw new Error('VAPID ключ не получен');
+    }
+    
+    // Request notification permission
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      throw new Error('Разрешение на уведомления не предоставлено');
+    }
+    
+    // Subscribe to push
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+    pushSubscription = await swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey
+    });
+    
+    isPushSubscribed = true;
+    
+    // Send subscription to server
+    const response = await fetch(`/api/stops/${selectedDeparture.uuid}/subscribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        subscription: pushSubscription.toJSON(),
+        notify_minutes: notifyMinutes,
+        tram_numbers: tramNumbers
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Ошибка подписки');
+    }
+    
+    return true;
+    
+  } catch (error) {
+    console.error('Push subscription error:', error);
+    throw error;
+  }
+}
+
+// Unsubscribe from push notifications
+async function unsubscribeFromPush() {
+  try {
+    if (pushSubscription) {
+      const endpoint = pushSubscription.endpoint;
+      
+      // Unsubscribe on server
+      await fetch(`/api/stops/${selectedDeparture.uuid}/unsubscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ endpoint })
+      });
+      
+      // Unsubscribe locally
+      await pushSubscription.unsubscribe();
+      pushSubscription = null;
+      isPushSubscribed = false;
+    }
+    
+    return true;
+    
+  } catch (error) {
+    console.error('Unsubscribe error:', error);
+    throw error;
+  }
+}
 
 // Initialize
 async function init() {
+    // Register Service Worker first
+    await registerServiceWorker();
+    
     try {
         const response = await fetch('/api/stops');
         if (!response.ok) {
@@ -261,9 +393,6 @@ async function updateResults() {
         
         // Get latest history
         await fetchHistory();
-        
-        // Check notifications
-        checkNotifications(data);
         
         displayResults(data);
         
@@ -553,6 +682,12 @@ function showMessage(message, type = 'info') {
 
 // Notification button click
 notificationBtn.addEventListener('click', async () => {
+    // Check if push notifications are supported
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showMessage('Ваш браузер не поддерживает push-уведомления', 'error');
+        return;
+    }
+    
     // Request permission if not already granted
     if ('Notification' in window) {
         if (Notification.permission === 'default') {
@@ -581,7 +716,7 @@ cancelNotificationBtn.addEventListener('click', () => {
 });
 
 // Confirm notification
-confirmNotificationBtn.addEventListener('click', () => {
+confirmNotificationBtn.addEventListener('click', async () => {
     const minutes = parseInt(notifyTimeSelect.value);
     const tramNumber = notifyTramSelect.value;
     
@@ -590,28 +725,52 @@ confirmNotificationBtn.addEventListener('click', () => {
         return;
     }
     
-    // Add to active notifications
-    const notification = {
-        id: Date.now(),
-        tramNumber,
-        minutes,
-        stopName: selectedDeparture.name
-    };
+    // Check if notification for this tram already exists
+    if (activeNotifications.some(n => n.tramNumber === tramNumber)) {
+        showMessage('Уведомление для этого трамвая уже активно', 'error');
+        return;
+    }
     
-    activeNotifications.push(notification);
+    // Disable button while subscribing
+    confirmNotificationBtn.disabled = true;
+    confirmNotificationBtn.textContent = 'Подключение...';
     
-    // Reset notified set for this tram
-    notifiedTrams.delete(`${tramNumber}_${minutes}`);
-    
-    // Update display
-    updateActiveNotificationsDisplay();
-    
-    // Hide setup form
-    notificationSetup.style.display = 'none';
-    
-    // Show success message
-    showMessage(`✓ Оповещение настроено для трамвая ${tramNumber}`, 'success');
-    setTimeout(() => showMessage(''), 3000);
+    try {
+        // Add to active notifications first
+        const notification = {
+            id: Date.now(),
+            tramNumber,
+            minutes,
+            stopName: selectedDeparture.name
+        };
+        
+        activeNotifications.push(notification);
+        
+        // Collect all tram numbers and use the minimum notify time
+        const allTramNumbers = activeNotifications.map(n => n.tramNumber);
+        const minNotifyMinutes = Math.min(...activeNotifications.map(n => n.minutes));
+        
+        // Subscribe to push notifications with all selected trams
+        await subscribeToPush(minNotifyMinutes, allTramNumbers);
+        
+        // Update display
+        updateActiveNotificationsDisplay();
+        
+        // Hide setup form
+        notificationSetup.style.display = 'none';
+        
+        // Show success message
+        showMessage(`✓ Push-уведомления настроены для трамвая ${tramNumber}`, 'success');
+        setTimeout(() => showMessage(''), 3000);
+        
+    } catch (error) {
+        // Remove the notification we just added if subscription failed
+        activeNotifications = activeNotifications.filter(n => n.tramNumber !== tramNumber);
+        showMessage(`Ошибка подписки: ${error.message}`, 'error');
+    } finally {
+        confirmNotificationBtn.disabled = false;
+        confirmNotificationBtn.textContent = 'Включить';
+    }
 });
 
 // Update active notifications display
@@ -644,65 +803,30 @@ function updateActiveNotificationsDisplay() {
 }
 
 // Remove notification
-function removeNotification(id) {
+async function removeNotification(id) {
     activeNotifications = activeNotifications.filter(n => n.id !== id);
-    updateActiveNotificationsDisplay();
-}
-
-// Check notifications
-function checkNotifications(data) {
-    if (activeNotifications.length === 0 || !data.routePath) {
-        return;
+    
+    if (activeNotifications.length === 0) {
+        // No more notifications - unsubscribe completely
+        if (isPushSubscribed) {
+            try {
+                await unsubscribeFromPush();
+            } catch (error) {
+                console.error('Error unsubscribing:', error);
+            }
+        }
+    } else {
+        // Still have notifications - update subscription with remaining trams
+        try {
+            const allTramNumbers = activeNotifications.map(n => n.tramNumber);
+            const minNotifyMinutes = Math.min(...activeNotifications.map(n => n.minutes));
+            await subscribeToPush(minNotifyMinutes, allTramNumbers);
+        } catch (error) {
+            console.error('Error updating subscription:', error);
+        }
     }
     
-    activeNotifications.forEach(notif => {
-        const route = data.routePath.find(r => r.number === notif.tramNumber);
-        
-        if (!route || !route.externalForecast) {
-            return;
-        }
-        
-        // Find earliest arrival time
-        let minTime = Infinity;
-        route.externalForecast.forEach(forecast => {
-            if (forecast.time < minTime) {
-                minTime = forecast.time;
-            }
-        });
-        
-        if (minTime === Infinity) {
-            return;
-        }
-        
-        const arrivalMinutes = Math.round(minTime / 60);
-        const notifKey = `${notif.tramNumber}_${notif.minutes}`;
-        
-        // Check if we should notify
-        if (arrivalMinutes <= notif.minutes && !notifiedTrams.has(notifKey)) {
-            // Send notification
-            sendBrowserNotification(notif, arrivalMinutes);
-            
-            // Mark as notified
-            notifiedTrams.add(notifKey);
-            
-            // Auto-remove notification after sending
-            setTimeout(() => {
-                removeNotification(notif.id);
-            }, 5000);
-        }
-    });
-}
-
-// Send browser notification
-function sendBrowserNotification(notif, arrivalMinutes) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🚊 Радар трамваев Москвы', {
-            body: `Трамвай ${notif.tramNumber} прибывает через ${arrivalMinutes} мин на остановку ${notif.stopName}`,
-            icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚊</text></svg>',
-            requireInteraction: false,
-            tag: `tram-${notif.tramNumber}`
-        });
-    }
+    updateActiveNotificationsDisplay();
 }
 
 // Initialize on page load
