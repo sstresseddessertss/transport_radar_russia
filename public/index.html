@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Радар трамваев Москвы - мониторинг прибытия трамваев в реальном времени">
     <title>🚊 Радар трамваев Москвы</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚊</text></svg>">
     <link rel="stylesheet" href="style.css">
@@ -20,45 +21,50 @@
                             id="stop-url-input" 
                             class="stop-url-input" 
                             placeholder="https://moscowapp.mos.ru/stop?id=..."
+                            aria-label="URL остановки для импорта"
                         >
-                        <button id="add-stop-btn" class="add-stop-btn">Добавить</button>
+                        <button id="add-stop-btn" class="add-stop-btn" aria-label="Добавить остановку">Добавить</button>
                     </div>
-                    <div id="add-stop-message" class="add-stop-message" style="display: none;"></div>
+                    <div id="add-stop-message" class="add-stop-message" role="status" aria-live="polite" style="display: none;"></div>
                 </div>
                 
-                <div class="divider"></div>
+                <div class="divider" role="separator"></div>
                 
                 <div class="form-group">
                     <label for="departure-stop">Остановка отправления:</label>
-                    <select id="departure-stop" class="stop-select">
+                    <select id="departure-stop" class="stop-select" aria-label="Выберите остановку отправления">
                         <option value="">Выберите остановку...</option>
                     </select>
                 </div>
 
                 <div class="form-group" id="tram-selection-group" style="display: none;">
-                    <label>Выбор трамваев:</label>
-                    <div id="tram-checkboxes" class="tram-checkboxes">
+                    <label id="tram-selection-label">Выбор трамваев:</label>
+                    <div id="tram-checkboxes" class="tram-checkboxes" role="group" aria-labelledby="tram-selection-label">
                         <!-- Dynamically populated -->
                     </div>
                 </div>
 
-                <button id="monitoring-btn" class="monitoring-btn monitoring-btn-off" disabled>
+                <button id="monitoring-btn" class="monitoring-btn monitoring-btn-off" disabled aria-label="Начать мониторинг прибытия трамваев">
                     МОНИТОРИНГ
                 </button>
                 
-                <button id="notification-btn" class="notification-btn" style="display: none;">
+                <button id="notification-btn" class="notification-btn" style="display: none;" aria-label="Настроить оповещение о прибытии трамвая">
                     🔔 Оповестить
+                </button>
+                
+                <button id="share-stop-btn" class="share-stop-btn" style="display: none;" aria-label="Поделиться ссылкой на остановку">
+                    🔗 Поделиться
                 </button>
             </div>
 
-            <div id="error-message" class="error-message" style="display: none;"></div>
+            <div id="error-message" class="error-message" role="alert" aria-live="assertive" style="display: none;"></div>
             
-            <div id="notification-setup" class="notification-setup" style="display: none;">
-                <h3>Настройка оповещения</h3>
+            <div id="notification-setup" class="notification-setup" role="dialog" aria-labelledby="notification-setup-title" style="display: none;">
+                <h3 id="notification-setup-title">Настройка оповещения</h3>
                 <div class="notification-form">
                     <div class="form-group-inline">
                         <label for="notify-time">Оповестить за:</label>
-                        <select id="notify-time" class="notify-select">
+                        <select id="notify-time" class="notify-select" aria-label="Время до оповещения">
                             <option value="1">1 минуту</option>
                             <option value="2">2 минуты</option>
                             <option value="3" selected>3 минуты</option>
@@ -69,32 +75,32 @@
                     </div>
                     <div class="form-group-inline">
                         <label for="notify-tram">Трамвай:</label>
-                        <select id="notify-tram" class="notify-select">
+                        <select id="notify-tram" class="notify-select" aria-label="Выберите трамвай для оповещения">
                             <option value="">Выберите...</option>
                         </select>
                     </div>
                     <div class="notification-actions">
-                        <button id="confirm-notification-btn" class="confirm-notification-btn">Включить</button>
-                        <button id="cancel-notification-btn" class="cancel-notification-btn">Отмена</button>
+                        <button id="confirm-notification-btn" class="confirm-notification-btn" aria-label="Включить оповещение">Включить</button>
+                        <button id="cancel-notification-btn" class="cancel-notification-btn" aria-label="Отменить настройку оповещения">Отмена</button>
                     </div>
                 </div>
-                <div id="active-notifications" class="active-notifications" style="display: none;">
+                <div id="active-notifications" class="active-notifications" role="region" aria-label="Активные оповещения" style="display: none;">
                     <h4>Активные оповещения:</h4>
                     <div id="notifications-list"></div>
                 </div>
             </div>
 
-            <div id="results-section" class="results-section" style="display: none;">
-                <h2>Расписание</h2>
-                <div id="results" class="results">
+            <div id="results-section" class="results-section" role="region" aria-labelledby="results-heading" style="display: none;">
+                <h2 id="results-heading">Расписание</h2>
+                <div id="results" class="results" role="list" aria-live="polite">
                     <!-- Dynamically populated -->
                 </div>
-                <div class="legend">
+                <div class="legend" role="note">
                     <span class="legend-item">
-                        <span class="telemetry-badge">GPS</span> = данные по GPS (точно)
+                        <span class="telemetry-badge" aria-label="GPS данные">GPS</span> = данные по GPS (точно)
                     </span>
                     <span class="legend-item">
-                        <span class="schedule-badge">РАС</span> = расписание (приблизительно)
+                        <span class="schedule-badge" aria-label="Расписание">РАС</span> = расписание (приблизительно)
                     </span>
                 </div>
             </div>

@@ -1,0 +1,109 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`HistoryPagination Component snapshot should match snapshot for multiple pages 1`] = `
+<div
+  aria-label="Навигация по истории"
+  class="history-pagination"
+  role="navigation"
+>
+  <div
+    aria-live="polite"
+    class="pagination-info"
+  >
+    21-30 из 100
+  </div>
+  <div
+    class="pagination-buttons"
+  >
+    <button
+      aria-label="Предыдущая страница"
+      class="pagination-btn"
+    >
+      ‹ Назад
+    </button>
+    <button
+      aria-label="Страница 1"
+      class="pagination-btn pagination-page"
+    >
+      1
+    </button>
+    <button
+      aria-label="Страница 2"
+      class="pagination-btn pagination-page"
+    >
+      2
+    </button>
+    <button
+      aria-current="page"
+      aria-label="Страница 3"
+      class="pagination-btn pagination-page active"
+    >
+      3
+    </button>
+    <button
+      aria-label="Страница 4"
+      class="pagination-btn pagination-page"
+    >
+      4
+    </button>
+    <span
+      aria-hidden="true"
+      class="pagination-ellipsis"
+    >
+      ...
+    </span>
+    <button
+      aria-label="Страница 10"
+      class="pagination-btn pagination-page"
+    >
+      10
+    </button>
+    <button
+      aria-label="Следующая страница"
+      class="pagination-btn"
+    >
+      Вперёд ›
+    </button>
+  </div>
+</div>
+`;
+
+exports[`HistoryPagination Component snapshot should match snapshot for single page 1`] = `
+<div
+  aria-label="Навигация по истории"
+  class="history-pagination"
+  role="navigation"
+>
+  <div
+    aria-live="polite"
+    class="pagination-info"
+  >
+    1-5 из 5
+  </div>
+  <div
+    class="pagination-buttons"
+  >
+    <button
+      aria-label="Предыдущая страница"
+      class="pagination-btn"
+      disabled=""
+    >
+      ‹ Назад
+    </button>
+    <button
+      aria-current="page"
+      aria-label="Страница 1"
+      class="pagination-btn pagination-page active"
+    >
+      1
+    </button>
+    <button
+      aria-label="Следующая страница"
+      class="pagination-btn"
+      disabled=""
+    >
+      Вперёд ›
+    </button>
+  </div>
+</div>
+`;

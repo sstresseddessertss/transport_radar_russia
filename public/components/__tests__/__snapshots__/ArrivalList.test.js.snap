@@ -1,0 +1,92 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`ArrivalList Component snapshot should match snapshot 1`] = `
+<div
+  class="arrival-list"
+  role="list"
+>
+  <div
+    class="arrival-item"
+    role="listitem"
+  >
+    <div
+      aria-expanded="false"
+      aria-label="Трамвай 3, показать историю прибытий"
+      class="arrival-main-content"
+      role="button"
+      style="cursor: pointer;"
+      tabindex="0"
+    >
+      <div
+        class="arrival-tram-number"
+      >
+        3
+      </div>
+      <div
+        class="arrival-times"
+      >
+        <span
+          aria-label="2 минут, GPS данные"
+          class="time-badge time-telemetry"
+        >
+          2 мин
+        </span>
+        <span
+          aria-label="7 минут, по расписанию"
+          class="time-badge time-schedule"
+        >
+          7 мин
+        </span>
+      </div>
+    </div>
+    <div
+      class="arrival-history"
+      style="display: none;"
+    >
+      <div
+        class="history-title"
+      >
+        Последние прибытия:
+      </div>
+      <div
+        class="history-list"
+      >
+        <span
+          class="history-item"
+        >
+          14:30
+        </span>
+        <span
+          class="history-item"
+        >
+          14:15
+        </span>
+      </div>
+    </div>
+  </div>
+  <div
+    class="arrival-item"
+    role="listitem"
+  >
+    <div
+      class="arrival-main-content"
+    >
+      <div
+        class="arrival-tram-number"
+      >
+        39
+      </div>
+      <div
+        class="arrival-times"
+      >
+        <span
+          aria-label="5 минут, GPS данные"
+          class="time-badge time-telemetry"
+        >
+          5 мин
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+`;
