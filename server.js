@@ -541,8 +541,8 @@ async function checkAndSendPushNotifications() {
               const payload = JSON.stringify({
                 title: '🚊 Радар трамваев Москвы',
                 body: `Трамвай ${tramNumber} прибывает через ${arrivalMinutes} мин на остановку ${stopName}`,
-                icon: '/icon-192.png',
-                badge: '/badge-72.png',
+                icon: '/icon-192.svg',
+                badge: '/badge-72.svg',
                 tag: `tram-${tramNumber}-${stopId}`,
                 data: {
                   stopId,

@@ -16,8 +16,8 @@ self.addEventListener('push', (event) => {
   let notificationData = {
     title: '🚊 Радар трамваев Москвы',
     body: 'Новое уведомление о прибытии трамвая',
-    icon: '/icon-192.png',
-    badge: '/badge-72.png'
+    icon: '/icon-192.svg',
+    badge: '/badge-72.svg'
   };
   
   if (event.data) {
