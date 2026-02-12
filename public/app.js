@@ -10,6 +10,12 @@ const MAX_FETCH_FAILURES = 3;
 let expandedTrams = new Set(); // Track which tram blocks are expanded
 let arrivalHistory = {}; // Store arrival history for current stop
 
+// History state
+let currentHistoryPage = 1;
+let currentHistoryPageSize = 20;
+let currentHistoryFilters = {};
+let totalHistoryPages = 0;
+
 // DOM elements
 const departureSelect = document.getElementById('departure-stop');
 const tramSelectionGroup = document.getElementById('tram-selection-group');
@@ -29,6 +35,23 @@ const confirmNotificationBtn = document.getElementById('confirm-notification-btn
 const cancelNotificationBtn = document.getElementById('cancel-notification-btn');
 const activeNotificationsDiv = document.getElementById('active-notifications');
 const notificationsList = document.getElementById('notifications-list');
+
+// History DOM elements
+const viewHistoryBtn = document.getElementById('view-history-btn');
+const historySection = document.getElementById('history-section');
+const closeHistoryBtn = document.getElementById('close-history-btn');
+const historyDateFrom = document.getElementById('history-date-from');
+const historyDateTo = document.getElementById('history-date-to');
+const historyVehicleFilter = document.getElementById('history-vehicle-filter');
+const applyHistoryFiltersBtn = document.getElementById('apply-history-filters-btn');
+const resetHistoryFiltersBtn = document.getElementById('reset-history-filters-btn');
+const historyLoading = document.getElementById('history-loading');
+const historyError = document.getElementById('history-error');
+const historyResults = document.getElementById('history-results');
+const historyPagination = document.getElementById('history-pagination');
+const historyPrevBtn = document.getElementById('history-prev-btn');
+const historyNextBtn = document.getElementById('history-next-btn');
+const historyPageInfo = document.getElementById('history-page-info');
 
 // Notification state
 let activeNotifications = [];
@@ -83,10 +106,14 @@ departureSelect.addEventListener('change', async (e) => {
         selectedDeparture = null;
         tramSelectionGroup.style.display = 'none';
         monitoringBtn.disabled = true;
+        viewHistoryBtn.style.display = 'none';
         return;
     }
     
     selectedDeparture = stops.find(s => s.uuid === uuid);
+    
+    // Show history button
+    viewHistoryBtn.style.display = 'block';
     
     // Fetch available trams
     await fetchAvailableTrams();
@@ -704,6 +731,210 @@ function sendBrowserNotification(notif, arrivalMinutes) {
         });
     }
 }
+
+// History view functionality
+async function loadArrivalHistory() {
+    if (!selectedDeparture) return;
+    
+    historyLoading.style.display = 'block';
+    historyError.style.display = 'none';
+    historyResults.innerHTML = '';
+    historyPagination.style.display = 'none';
+    
+    try {
+        const params = new URLSearchParams({
+            page: currentHistoryPage,
+            page_size: currentHistoryPageSize,
+            ...currentHistoryFilters
+        });
+        
+        const response = await fetch(`/api/stops/${selectedDeparture.uuid}/history?${params}`);
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Ошибка загрузки истории');
+        }
+        
+        const result = await response.json();
+        
+        historyLoading.style.display = 'none';
+        
+        if (result.data.length === 0) {
+            historyResults.innerHTML = '<div class="no-history">Нет данных по истории прибытий</div>';
+        } else {
+            renderHistoryResults(result.data);
+            renderPagination(result.meta);
+        }
+        
+    } catch (error) {
+        historyLoading.style.display = 'none';
+        historyError.textContent = error.message;
+        historyError.style.display = 'block';
+    }
+}
+
+function renderHistoryResults(data) {
+    historyResults.innerHTML = '';
+    
+    const table = document.createElement('div');
+    table.className = 'history-table';
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'history-table-header';
+    header.innerHTML = `
+        <div class="history-col">Дата и время</div>
+        <div class="history-col">Транспорт</div>
+        <div class="history-col">ETA</div>
+    `;
+    table.appendChild(header);
+    
+    // Rows
+    data.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'history-table-row';
+        
+        const recordedDate = new Date(item.recorded_at);
+        const etaDate = new Date(item.eta);
+        
+        const metadata = item.metadata || {};
+        const vehicleDisplay = metadata.route 
+            ? `Маршрут ${metadata.route} (№${item.vehicle_id})`
+            : `№${item.vehicle_id}`;
+        
+        row.innerHTML = `
+            <div class="history-col">
+                ${recordedDate.toLocaleDateString('ru-RU')} 
+                ${recordedDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+            <div class="history-col">${vehicleDisplay}</div>
+            <div class="history-col">
+                ${etaDate.toLocaleDateString('ru-RU')} 
+                ${etaDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+        `;
+        
+        table.appendChild(row);
+    });
+    
+    historyResults.appendChild(table);
+}
+
+function renderPagination(meta) {
+    totalHistoryPages = meta.total_pages;
+    
+    if (totalHistoryPages <= 1) {
+        historyPagination.style.display = 'none';
+        return;
+    }
+    
+    historyPagination.style.display = 'flex';
+    historyPageInfo.textContent = `Страница ${meta.page} из ${meta.total_pages} (Всего: ${meta.total_items})`;
+    
+    historyPrevBtn.disabled = meta.page === 1;
+    historyNextBtn.disabled = meta.page >= meta.total_pages;
+}
+
+// Populate vehicle filter options
+async function populateVehicleFilter() {
+    if (!selectedDeparture) return;
+    
+    try {
+        const params = new URLSearchParams({
+            page: 1,
+            page_size: 100
+        });
+        
+        const response = await fetch(`/api/stops/${selectedDeparture.uuid}/history?${params}`);
+        
+        if (response.ok) {
+            const result = await response.json();
+            const vehicles = new Set();
+            
+            result.data.forEach(item => {
+                vehicles.add(item.vehicle_id);
+            });
+            
+            historyVehicleFilter.innerHTML = '<option value="">Все</option>';
+            
+            Array.from(vehicles).sort().forEach(vehicleId => {
+                const option = document.createElement('option');
+                option.value = vehicleId;
+                option.textContent = `№${vehicleId}`;
+                historyVehicleFilter.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading vehicle filter:', error);
+    }
+}
+
+// Event listeners for history view
+viewHistoryBtn.addEventListener('click', () => {
+    historySection.style.display = 'block';
+    resultsSection.style.display = 'none';
+    
+    // Set default date range (last 7 days)
+    const today = new Date();
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    historyDateFrom.value = weekAgo.toISOString().split('T')[0];
+    historyDateTo.value = today.toISOString().split('T')[0];
+    
+    currentHistoryPage = 1;
+    currentHistoryFilters = {};
+    
+    populateVehicleFilter();
+    loadArrivalHistory();
+});
+
+closeHistoryBtn.addEventListener('click', () => {
+    historySection.style.display = 'none';
+    resultsSection.style.display = 'block';
+});
+
+applyHistoryFiltersBtn.addEventListener('click', () => {
+    currentHistoryFilters = {};
+    
+    if (historyDateFrom.value) {
+        currentHistoryFilters.date_from = historyDateFrom.value;
+    }
+    
+    if (historyDateTo.value) {
+        currentHistoryFilters.date_to = historyDateTo.value;
+    }
+    
+    if (historyVehicleFilter.value) {
+        currentHistoryFilters.vehicle_id = historyVehicleFilter.value;
+    }
+    
+    currentHistoryPage = 1;
+    loadArrivalHistory();
+});
+
+resetHistoryFiltersBtn.addEventListener('click', () => {
+    historyDateFrom.value = '';
+    historyDateTo.value = '';
+    historyVehicleFilter.value = '';
+    currentHistoryFilters = {};
+    currentHistoryPage = 1;
+    loadArrivalHistory();
+});
+
+historyPrevBtn.addEventListener('click', () => {
+    if (currentHistoryPage > 1) {
+        currentHistoryPage--;
+        loadArrivalHistory();
+    }
+});
+
+historyNextBtn.addEventListener('click', () => {
+    if (currentHistoryPage < totalHistoryPages) {
+        currentHistoryPage++;
+        loadArrivalHistory();
+    }
+});
 
 // Initialize on page load
 init();

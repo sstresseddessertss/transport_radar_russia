@@ -46,6 +46,10 @@
                     МОНИТОРИНГ
                 </button>
                 
+                <button id="view-history-btn" class="view-history-btn" style="display: none;">
+                    📊 История прибытий
+                </button>
+                
                 <button id="notification-btn" class="notification-btn" style="display: none;">
                     🔔 Оповестить
                 </button>
@@ -96,6 +100,48 @@
                     <span class="legend-item">
                         <span class="schedule-badge">РАС</span> = расписание (приблизительно)
                     </span>
+                </div>
+            </div>
+            
+            <div id="history-section" class="history-section" style="display: none;">
+                <div class="history-header">
+                    <h2>История прибытий</h2>
+                    <button id="close-history-btn" class="close-history-btn">✕ Закрыть</button>
+                </div>
+                
+                <div class="history-filters">
+                    <div class="filter-group">
+                        <label for="history-date-from">С даты:</label>
+                        <input type="date" id="history-date-from" class="history-date-input">
+                    </div>
+                    <div class="filter-group">
+                        <label for="history-date-to">До даты:</label>
+                        <input type="date" id="history-date-to" class="history-date-input">
+                    </div>
+                    <div class="filter-group">
+                        <label for="history-vehicle-filter">Транспорт:</label>
+                        <select id="history-vehicle-filter" class="history-select">
+                            <option value="">Все</option>
+                        </select>
+                    </div>
+                    <button id="apply-history-filters-btn" class="apply-filters-btn">Применить</button>
+                    <button id="reset-history-filters-btn" class="reset-filters-btn">Сбросить</button>
+                </div>
+                
+                <div id="history-loading" class="history-loading" style="display: none;">
+                    Загрузка истории...
+                </div>
+                
+                <div id="history-error" class="history-error" style="display: none;"></div>
+                
+                <div id="history-results" class="history-results">
+                    <!-- Dynamically populated -->
+                </div>
+                
+                <div id="history-pagination" class="history-pagination" style="display: none;">
+                    <button id="history-prev-btn" class="pagination-btn">← Назад</button>
+                    <span id="history-page-info" class="page-info"></span>
+                    <button id="history-next-btn" class="pagination-btn">Вперёд →</button>
                 </div>
             </div>
         </main>
