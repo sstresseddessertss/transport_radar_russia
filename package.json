@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node tests/vehicles-endpoint.test.js",
+    "test:vehicles": "node tests/vehicles-endpoint.test.js"
   },
   "keywords": [
     "moscow",

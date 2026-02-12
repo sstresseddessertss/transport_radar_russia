@@ -200,8 +200,12 @@ app.get('/api/stop/:uuid', async (req, res) => {
 // GET /api/stops/:stopId/vehicles?page=1&page_size=50&include_positions=true
 app.get('/api/stops/:stopId/vehicles', (req, res) => {
   const { stopId } = req.params;
-  const page = parseInt(req.query.page) || 1;
-  const pageSize = parseInt(req.query.page_size) || 50;
+  const pageParam = req.query.page;
+  const pageSizeParam = req.query.page_size;
+  
+  // Parse pagination with proper validation
+  const page = pageParam ? parseInt(pageParam) : 1;
+  const pageSize = pageSizeParam ? parseInt(pageSizeParam) : 50;
   const includePositions = req.query.include_positions !== 'false'; // Default true
   
   // Validate stopId exists
@@ -226,10 +230,10 @@ app.get('/api/stops/:stopId/vehicles', (req, res) => {
   }
   
   // Validate pagination parameters
-  if (page < 1) {
+  if (isNaN(page) || page < 1) {
     return res.status(400).json({ error: 'Page must be >= 1' });
   }
-  if (pageSize < 1 || pageSize > 100) {
+  if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
     return res.status(400).json({ error: 'Page size must be between 1 and 100' });
   }
   

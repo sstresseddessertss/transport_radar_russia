@@ -1,0 +1,44 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**', 'copilot/**' ]
+  pull_request:
+    branches: [ main, develop, 'feature/**' ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Start server in background
+      run: |
+        node server.js &
+        echo $! > server.pid
+        sleep 3
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Stop server
+      if: always()
+      run: |
+        if [ -f server.pid ]; then
+          kill $(cat server.pid) || true
+          rm server.pid
+        fi
