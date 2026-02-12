@@ -76,12 +76,13 @@ main {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 0.9rem;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .stop-url-input:focus {
     outline: none;
     border-color: var(--accent-green);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
 }
 
 .stop-url-input::placeholder {
@@ -97,12 +98,17 @@ main {
     font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s;
     white-space: nowrap;
 }
 
 .add-stop-btn:hover {
     background-color: var(--accent-green-hover);
+}
+
+.add-stop-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.4);
 }
 
 .add-stop-btn:disabled {
@@ -159,7 +165,7 @@ label {
     border-radius: 8px;
     font-size: 1rem;
     cursor: pointer;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .stop-select:hover {
@@ -169,6 +175,7 @@ label {
 .stop-select:focus {
     outline: none;
     border-color: var(--accent-green);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
 }
 
 .tram-checkboxes {
@@ -215,6 +222,11 @@ label {
     letter-spacing: 1px;
 }
 
+.monitoring-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.3);
+}
+
 .monitoring-btn-off {
     background-color: var(--accent-gray);
     color: var(--text-muted);
@@ -257,6 +269,26 @@ label {
 .notification-btn:hover {
     background-color: var(--accent-green);
     color: white;
+}
+
+.share-stop-btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 10px;
+}
+
+.share-stop-btn:hover {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--accent-green);
 }
 
 .notification-setup {

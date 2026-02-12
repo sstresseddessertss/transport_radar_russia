@@ -29,6 +29,7 @@ const confirmNotificationBtn = document.getElementById('confirm-notification-btn
 const cancelNotificationBtn = document.getElementById('cancel-notification-btn');
 const activeNotificationsDiv = document.getElementById('active-notifications');
 const notificationsList = document.getElementById('notifications-list');
+const shareStopBtn = document.getElementById('share-stop-btn');
 
 // Notification state
 let activeNotifications = [];
@@ -53,8 +54,43 @@ async function init() {
         });
         
         populateStopSelects();
+        
+        // Handle URL-based stop import
+        handleUrlImport();
     } catch (error) {
         showError('Ошибка при загрузке данных: ' + error.message);
+    }
+}
+
+// Handle URL-based stop import from query parameters
+function handleUrlImport() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stopId = urlParams.get('stopId');
+    const stopUrl = urlParams.get('importUrl');
+    
+    // If stopId is provided, auto-select that stop
+    if (stopId) {
+        const stop = stops.find(s => s.uuid === stopId);
+        if (stop) {
+            departureSelect.value = stopId;
+            departureSelect.dispatchEvent(new Event('change'));
+            
+            // Update URL to clean format (remove importUrl param)
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete('importUrl');
+            window.history.replaceState({}, '', cleanUrl);
+        }
+    }
+    // If importUrl is provided, import that stop
+    else if (stopUrl) {
+        stopUrlInput.value = stopUrl;
+        // Auto-trigger import
+        addStopBtn.click();
+        
+        // Clear URL param after import attempt
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('importUrl');
+        window.history.replaceState({}, '', cleanUrl);
     }
 }
 
@@ -83,10 +119,14 @@ departureSelect.addEventListener('change', async (e) => {
         selectedDeparture = null;
         tramSelectionGroup.style.display = 'none';
         monitoringBtn.disabled = true;
+        shareStopBtn.style.display = 'none';
         return;
     }
     
     selectedDeparture = stops.find(s => s.uuid === uuid);
+    
+    // Show share button when a stop is selected
+    shareStopBtn.style.display = 'block';
     
     // Fetch available trams
     await fetchAvailableTrams();
@@ -702,6 +742,63 @@ function sendBrowserNotification(notif, arrivalMinutes) {
             requireInteraction: false,
             tag: `tram-${notif.tramNumber}`
         });
+    }
+}
+
+// Share stop button handler
+shareStopBtn.addEventListener('click', async () => {
+    if (!selectedDeparture) {
+        return;
+    }
+    
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set('stopId', selectedDeparture.uuid);
+    
+    // Try to use native share API if available
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: '🚊 Радар трамваев Москвы',
+                text: `Остановка: ${selectedDeparture.name} (${selectedDeparture.direction})`,
+                url: shareUrl.toString()
+            });
+        } catch (err) {
+            // User cancelled or share failed, fallback to clipboard
+            if (err.name !== 'AbortError') {
+                copyToClipboard(shareUrl.toString());
+            }
+        }
+    } else {
+        // Fallback to clipboard copy
+        copyToClipboard(shareUrl.toString());
+    }
+});
+
+// Copy text to clipboard
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showMessage('✓ Ссылка скопирована в буфер обмена', 'success');
+            setTimeout(() => showMessage(''), 3000);
+        }).catch(() => {
+            showMessage('Не удалось скопировать ссылку', 'error');
+        });
+    } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showMessage('✓ Ссылка скопирована в буфер обмена', 'success');
+            setTimeout(() => showMessage(''), 3000);
+        } catch (err) {
+            showMessage('Не удалось скопировать ссылку', 'error');
+        }
+        document.body.removeChild(textArea);
     }
 }
 
