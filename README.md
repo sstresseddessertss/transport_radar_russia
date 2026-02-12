@@ -145,7 +145,8 @@ transport_radar_russia/
 Для production развертывания рекомендуется использовать переменные окружения:
 
 ```bash
-# VAPID ключи для Web Push (генерируются автоматически при первом запуске)
+# VAPID ключи для Web Push (должны быть установлены для production)
+# Генерируются командой ниже
 VAPID_PUBLIC_KEY=ваш_публичный_ключ
 VAPID_PRIVATE_KEY=ваш_приватный_ключ
 VAPID_SUBJECT=mailto:admin@your-domain.ru

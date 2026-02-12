@@ -6,10 +6,17 @@ const webpush = require('web-push');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// VAPID keys for Web Push (in production, store in environment variables)
+// VAPID keys for Web Push - MUST be set via environment variables in production
+// Generate keys with: node -e "const webpush = require('web-push'); const vapidKeys = webpush.generateVAPIDKeys(); console.log('VAPID_PUBLIC_KEY=' + vapidKeys.publicKey); console.log('VAPID_PRIVATE_KEY=' + vapidKeys.privateKey);"
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BGfdeIltToBqItxeeAskdTLYZ6SWUSVgZ_LokE4JseCF2p3nBZB7ZdzpYDPPRnnMwXYgE3hUvKxtyAzHGw5DV38';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'tgIFaCRTyErycHAR_JewsPRLBJirUu8Yab50NfcoYyY';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@transport-radar.ru';
+
+// Warn if using default VAPID keys
+if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+  console.warn('⚠️  WARNING: Using default VAPID keys. Generate and set your own keys via environment variables for production!');
+  console.warn('   Generate keys: node -e "const webpush = require(\'web-push\'); const vapidKeys = webpush.generateVAPIDKeys(); console.log(\'VAPID_PUBLIC_KEY=\' + vapidKeys.publicKey); console.log(\'VAPID_PRIVATE_KEY=\' + vapidKeys.privateKey);"');
+}
 
 webpush.setVapidDetails(
   VAPID_SUBJECT,
@@ -32,7 +39,7 @@ const tramTracking = new Map();
 const MAX_HISTORY_ITEMS = 3;
 
 // In-memory storage for push subscriptions
-// Structure: { stopId: [{ subscription, user_id?, created_at, last_active, notify_minutes, tram_numbers }] }
+// Structure: { stopId: [{ subscription, user_id (defaults to null), created_at, last_active, notify_minutes, tram_numbers }] }
 const subscriptions = new Map();
 
 // Simple rate limiting for stop import endpoint
@@ -527,7 +534,7 @@ async function checkAndSendPushNotifications() {
             }
             
             const arrivalMinutes = Math.round(minTime / 60);
-            const notifKey = `${tramNumber}_${arrivalMinutes}`;
+            const notifKey = `${stopId}_${tramNumber}_${arrivalMinutes}`;
             
             // Check if we should send notification
             if (arrivalMinutes <= subData.notify_minutes && 

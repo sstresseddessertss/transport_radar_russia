@@ -725,15 +725,18 @@ confirmNotificationBtn.addEventListener('click', async () => {
         return;
     }
     
+    // Check if notification for this tram already exists
+    if (activeNotifications.some(n => n.tramNumber === tramNumber)) {
+        showMessage('Уведомление для этого трамвая уже активно', 'error');
+        return;
+    }
+    
     // Disable button while subscribing
     confirmNotificationBtn.disabled = true;
     confirmNotificationBtn.textContent = 'Подключение...';
     
     try {
-        // Subscribe to push notifications with selected tram
-        await subscribeToPush(minutes, [tramNumber]);
-        
-        // Add to active notifications
+        // Add to active notifications first
         const notification = {
             id: Date.now(),
             tramNumber,
@@ -742,6 +745,13 @@ confirmNotificationBtn.addEventListener('click', async () => {
         };
         
         activeNotifications.push(notification);
+        
+        // Collect all tram numbers and use the minimum notify time
+        const allTramNumbers = activeNotifications.map(n => n.tramNumber);
+        const minNotifyMinutes = Math.min(...activeNotifications.map(n => n.minutes));
+        
+        // Subscribe to push notifications with all selected trams
+        await subscribeToPush(minNotifyMinutes, allTramNumbers);
         
         // Update display
         updateActiveNotificationsDisplay();
@@ -754,6 +764,8 @@ confirmNotificationBtn.addEventListener('click', async () => {
         setTimeout(() => showMessage(''), 3000);
         
     } catch (error) {
+        // Remove the notification we just added if subscription failed
+        activeNotifications = activeNotifications.filter(n => n.tramNumber !== tramNumber);
         showMessage(`Ошибка подписки: ${error.message}`, 'error');
     } finally {
         confirmNotificationBtn.disabled = false;
@@ -792,18 +804,28 @@ function updateActiveNotificationsDisplay() {
 
 // Remove notification
 async function removeNotification(id) {
-    const notification = activeNotifications.find(n => n.id === id);
+    activeNotifications = activeNotifications.filter(n => n.id !== id);
     
-    if (notification && isPushSubscribed) {
+    if (activeNotifications.length === 0) {
+        // No more notifications - unsubscribe completely
+        if (isPushSubscribed) {
+            try {
+                await unsubscribeFromPush();
+            } catch (error) {
+                console.error('Error unsubscribing:', error);
+            }
+        }
+    } else {
+        // Still have notifications - update subscription with remaining trams
         try {
-            // Unsubscribe from push
-            await unsubscribeFromPush();
+            const allTramNumbers = activeNotifications.map(n => n.tramNumber);
+            const minNotifyMinutes = Math.min(...activeNotifications.map(n => n.minutes));
+            await subscribeToPush(minNotifyMinutes, allTramNumbers);
         } catch (error) {
-            console.error('Error unsubscribing:', error);
+            console.error('Error updating subscription:', error);
         }
     }
     
-    activeNotifications = activeNotifications.filter(n => n.id !== id);
     updateActiveNotificationsDisplay();
 }
 
