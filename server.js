@@ -56,12 +56,63 @@ async function loadStops() {
   }
 }
 
-// API endpoint to get stops list
+// API endpoint to get stops list with optional prefix search and pagination
 app.get('/api/stops', (req, res) => {
   if (!stopsData) {
     return res.status(500).json({ error: 'Stops data not loaded' });
   }
-  res.json(stopsData);
+  
+  const { prefix, page, page_size } = req.query;
+  
+  // If no query params at all, return all stops (backward compatibility)
+  if (prefix === undefined && page === undefined && page_size === undefined) {
+    return res.json(stopsData);
+  }
+  
+  // Parse pagination parameters
+  const pageNum = page !== undefined ? parseInt(page, 10) : 1;
+  const pageSize = page_size !== undefined ? parseInt(page_size, 10) : 20;
+  
+  // Validate pagination parameters
+  if (isNaN(pageNum) || pageNum < 1) {
+    return res.status(400).json({ error: 'Invalid page number. Must be >= 1' });
+  }
+  
+  if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
+    return res.status(400).json({ error: 'Invalid page_size. Must be between 1 and 100' });
+  }
+  
+  // Filter stops by prefix if provided
+  let filteredStops = stopsData.stops;
+  
+  if (prefix && prefix.trim()) {
+    const searchPrefix = prefix.toLowerCase().trim();
+    filteredStops = stopsData.stops.filter(stop => {
+      const nameMatch = stop.name.toLowerCase().includes(searchPrefix);
+      const uuidMatch = stop.uuid.toLowerCase().startsWith(searchPrefix);
+      return nameMatch || uuidMatch;
+    });
+  }
+  
+  // Calculate pagination
+  const total = filteredStops.length;
+  const totalPages = Math.ceil(total / pageSize);
+  const startIndex = (pageNum - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedStops = filteredStops.slice(startIndex, endIndex);
+  
+  // Return paginated response
+  res.json({
+    stops: paginatedStops,
+    meta: {
+      total,
+      page: pageNum,
+      page_size: pageSize,
+      total_pages: totalPages,
+      has_next: pageNum < totalPages,
+      has_prev: pageNum > 1
+    }
+  });
 });
 
 // API proxy endpoint to fetch stop data from moscowtransport.app
