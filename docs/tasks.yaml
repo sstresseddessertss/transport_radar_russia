@@ -1,0 +1,13 @@
+tasks:
+  - id: 103
+    title: "Внедрение push-уведомлений для остановок"
+    status: "done"
+    description: "Реализована функциональность push-уведомлений для уведомления пользователей о прибытии транспорта на избранные остановки"
+    completed_date: "2026-02-12"
+    features:
+      - "Backend endpoint для регистрации подписок (POST /api/stops/{stopId}/subscribe)"
+      - "Backend endpoint для отписки (POST /api/stops/{stopId}/unsubscribe)"
+      - "Интеграция с Web Push API"
+      - "Service Worker для обработки push-уведомлений"
+      - "UI для управления подписками на уведомления"
+      - "Автоматическая отправка уведомлений при приближении транспорта"

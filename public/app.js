@@ -30,9 +30,19 @@ const cancelNotificationBtn = document.getElementById('cancel-notification-btn')
 const activeNotificationsDiv = document.getElementById('active-notifications');
 const notificationsList = document.getElementById('notifications-list');
 
+// Push notification elements
+const pushNotificationSection = document.getElementById('push-notification-section');
+const pushSubscribeBtn = document.getElementById('push-subscribe-btn');
+const pushStatus = document.getElementById('push-status');
+
 // Notification state
 let activeNotifications = [];
 let notifiedTrams = new Set(); // Track which trams have been notified to avoid spam
+
+// Push notification state
+let swRegistration = null;
+let pushSubscription = null;
+let vapidPublicKey = null;
 
 // Initialize
 async function init() {
@@ -53,6 +63,9 @@ async function init() {
         });
         
         populateStopSelects();
+        
+        // Initialize service worker and push notifications
+        await initPushNotifications();
     } catch (error) {
         showError('Ошибка при загрузке данных: ' + error.message);
     }
@@ -90,6 +103,9 @@ departureSelect.addEventListener('change', async (e) => {
     
     // Fetch available trams
     await fetchAvailableTrams();
+    
+    // Show push notification section if supported
+    updatePushNotificationUI();
 });
 
 // Fetch available trams for selected departure stop
@@ -703,6 +719,179 @@ function sendBrowserNotification(notif, arrivalMinutes) {
             tag: `tram-${notif.tramNumber}`
         });
     }
+}
+
+// Initialize push notifications
+async function initPushNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.log('Push notifications not supported');
+        return;
+    }
+    
+    try {
+        // Register service worker
+        swRegistration = await navigator.serviceWorker.register('/sw.js');
+        console.log('Service Worker registered:', swRegistration);
+        
+        // Get VAPID public key
+        const response = await fetch('/api/vapid-public-key');
+        const data = await response.json();
+        vapidPublicKey = data.publicKey;
+        
+        // Check if already subscribed
+        pushSubscription = await swRegistration.pushManager.getSubscription();
+        
+    } catch (error) {
+        console.error('Error initializing push notifications:', error);
+    }
+}
+
+// Update push notification UI based on state
+function updatePushNotificationUI() {
+    if (!selectedDeparture || !swRegistration) {
+        pushNotificationSection.style.display = 'none';
+        return;
+    }
+    
+    pushNotificationSection.style.display = 'block';
+    
+    if (pushSubscription) {
+        pushSubscribeBtn.textContent = '🔕 Отключить уведомления';
+        pushSubscribeBtn.classList.add('subscribed');
+        showPushStatus('Уведомления включены для этой остановки', 'success');
+    } else {
+        pushSubscribeBtn.textContent = '🔔 Включить уведомления';
+        pushSubscribeBtn.classList.remove('subscribed');
+        pushStatus.style.display = 'none';
+    }
+}
+
+// Handle push subscribe button
+pushSubscribeBtn.addEventListener('click', async () => {
+    if (pushSubscription) {
+        // Unsubscribe
+        await unsubscribeFromPush();
+    } else {
+        // Subscribe
+        await subscribeToPush();
+    }
+});
+
+// Subscribe to push notifications
+async function subscribeToPush() {
+    if (!swRegistration || !selectedDeparture) {
+        return;
+    }
+    
+    try {
+        // Request notification permission
+        const permission = await Notification.requestPermission();
+        
+        if (permission !== 'granted') {
+            showPushStatus('Разрешение на уведомления не предоставлено', 'error');
+            return;
+        }
+        
+        pushSubscribeBtn.disabled = true;
+        showPushStatus('Подписка на уведомления...', 'info');
+        
+        // Subscribe to push manager
+        pushSubscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        });
+        
+        // Send subscription to server
+        const response = await fetch(`/api/stops/${selectedDeparture.uuid}/subscribe`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                subscription: pushSubscription,
+                notificationMinutes: 3
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to save subscription on server');
+        }
+        
+        updatePushNotificationUI();
+        
+    } catch (error) {
+        console.error('Error subscribing to push:', error);
+        showPushStatus('Ошибка при подписке на уведомления', 'error');
+        pushSubscription = null;
+    } finally {
+        pushSubscribeBtn.disabled = false;
+    }
+}
+
+// Unsubscribe from push notifications
+async function unsubscribeFromPush() {
+    if (!pushSubscription || !selectedDeparture) {
+        return;
+    }
+    
+    try {
+        pushSubscribeBtn.disabled = true;
+        showPushStatus('Отписка от уведомлений...', 'info');
+        
+        // Unsubscribe from server
+        const response = await fetch(`/api/stops/${selectedDeparture.uuid}/unsubscribe`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                endpoint: pushSubscription.endpoint
+            })
+        });
+        
+        // Unsubscribe from push manager
+        await pushSubscription.unsubscribe();
+        pushSubscription = null;
+        
+        updatePushNotificationUI();
+        
+    } catch (error) {
+        console.error('Error unsubscribing from push:', error);
+        showPushStatus('Ошибка при отписке от уведомлений', 'error');
+    } finally {
+        pushSubscribeBtn.disabled = false;
+    }
+}
+
+// Show push notification status
+function showPushStatus(message, type) {
+    pushStatus.textContent = message;
+    pushStatus.className = `push-status ${type}`;
+    pushStatus.style.display = 'block';
+    
+    // Auto-hide info messages
+    if (type === 'info') {
+        setTimeout(() => {
+            pushStatus.style.display = 'none';
+        }, 3000);
+    }
+}
+
+// Convert VAPID key from base64 to Uint8Array
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+    
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    
+    return outputArray;
 }
 
 // Initialize on page load
