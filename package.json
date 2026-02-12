@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "mocha test/*.test.js --timeout 10000",
+    "test:push-emulation": "node test/push-emulation.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "keywords": [
     "moscow",
@@ -17,7 +21,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "mocha": "^10.3.0"
   },
   "engines": {
     "node": ">=18.0.0"

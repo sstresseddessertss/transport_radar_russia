@@ -1,0 +1,81 @@
+name: Smoke CI
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run lint
+        run: npm run lint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+
+  push-emulation-smoke:
+    name: Push Notification Emulation
+    runs-on: ubuntu-latest
+    # Only run on push to branches or manual dispatch, not on PRs from forks
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    env:
+      # Use mocked values for testing, can be overridden by secrets
+      VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY || 'BOLHt7LWIR4sktQGxeTTRLgQbHbetCmqJ4taRUgYxwqh3Fc4EeqU90jqztdcGPcgd34-UAVh-VNBChja-3m1OpI' }}
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY || '7JGBcV-Rwy4PabSQlmEc04dSzQvwGN2DAmGkE0IOvJk' }}
+      YANDEX_METRIKA_ID: ${{ secrets.YANDEX_METRIKA_ID || 'mock-metrika-id' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run push notification emulation test
+        run: npm run test:push-emulation
+        env:
+          VAPID_PUBLIC_KEY: ${{ env.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ env.VAPID_PRIVATE_KEY }}
+          YANDEX_METRIKA_ID: ${{ env.YANDEX_METRIKA_ID }}
