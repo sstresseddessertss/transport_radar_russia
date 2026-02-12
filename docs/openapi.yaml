@@ -1,0 +1,263 @@
+openapi: 3.0.3
+info:
+  title: Transport Radar Russia API
+  description: API for monitoring Moscow tram arrivals in real-time
+  version: 1.0.0
+  contact:
+    name: GitHub Repository
+    url: https://github.com/sstresseddessertss/transport_radar_russia
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+paths:
+  /api/stops:
+    get:
+      summary: Get list of all stops
+      description: Returns all available tram stops
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stops:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Stop'
+
+  /api/stop/{uuid}:
+    get:
+      summary: Get stop details
+      description: Get details and schedule for a specific stop
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response with stop details
+        '477':
+          description: API unavailable (requires Russian IP)
+
+  /api/stops/{stopId}/vehicles:
+    get:
+      summary: Get vehicles for a stop
+      description: Returns a paginated list of vehicles serving the stop with position, ETA, and status
+      tags:
+        - Vehicles
+      parameters:
+        - name: stopId
+          in: path
+          required: true
+          description: UUID of the stop
+          schema:
+            type: string
+            format: uuid
+          example: "760d1406-363e-4b1a-a604-a6c75db93493"
+        
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        
+        - name: page_size
+          in: query
+          required: false
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          example: 50
+        
+        - name: include_positions
+          in: query
+          required: false
+          description: Whether to include vehicle position coordinates
+          schema:
+            type: boolean
+            default: true
+          example: true
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vehicle'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+              example:
+                data:
+                  - vehicle_id: "vehicle_760d1406_0"
+                    run_id: "run_001"
+                    lat: 55.7558
+                    lon: 37.6173
+                    eta_seconds: 180
+                    eta_human: "3 мин"
+                    status: "approaching"
+                    last_update: "2026-02-12T12:30:00Z"
+                meta:
+                  page: 1
+                  page_size: 50
+                  total_pages: 1
+                  total_items: 5
+
+        '400':
+          description: Bad request (invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Page must be >= 1"
+
+        '404':
+          description: Stop not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Stop not found"
+                stopId: "invalid-stop-id"
+
+        '429':
+          description: Too many requests (rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Слишком много запросов. Попробуйте позже."
+
+  /api/stops/import:
+    post:
+      summary: Import a new stop
+      description: Add a new stop by providing a Moscow transport app URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: URL from Moscow transport app
+                  example: "https://moscowapp.mos.ru/stop?id=760d1406-363e-4b1a-a604-a6c75db93493"
+      responses:
+        '200':
+          description: Stop successfully imported
+        '400':
+          description: Invalid URL format
+        '409':
+          description: Stop already exists
+        '429':
+          description: Rate limit exceeded
+
+components:
+  schemas:
+    Stop:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Stop name
+          example: "Плодоовощной комбинат"
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier
+          example: "760d1406-363e-4b1a-a604-a6c75db93493"
+        direction:
+          type: string
+          description: Direction of travel
+          example: "в центр"
+
+    Vehicle:
+      type: object
+      properties:
+        vehicle_id:
+          type: string
+          description: Unique vehicle identifier
+          example: "vehicle_760d1406_0"
+        run_id:
+          type: string
+          description: Run/route identifier
+          example: "run_001"
+        lat:
+          type: number
+          format: float
+          description: Latitude coordinate (only if include_positions=true)
+          example: 55.7558
+        lon:
+          type: number
+          format: float
+          description: Longitude coordinate (only if include_positions=true)
+          example: 37.6173
+        eta_seconds:
+          type: integer
+          description: Estimated time of arrival in seconds
+          example: 180
+        eta_human:
+          type: string
+          description: Human-readable ETA
+          example: "3 мин"
+        status:
+          type: string
+          enum: [approaching, boarding, departed, delayed]
+          description: Current vehicle status
+          example: "approaching"
+        last_update:
+          type: string
+          format: date-time
+          description: Timestamp of last update
+          example: "2026-02-12T12:30:00Z"
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        page_size:
+          type: integer
+          description: Number of items per page
+          example: 50
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 2
+        total_items:
+          type: integer
+          description: Total number of items
+          example: 75
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Stop not found"
