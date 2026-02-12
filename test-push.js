@@ -18,6 +18,8 @@ const webpush = require('web-push');
 const readline = require('readline');
 
 // Configure VAPID keys (same as in server.js)
+// WARNING: These are development-only keys for testing purposes.
+// In production, always use environment variables or the keys will be exposed!
 const VAPID_PUBLIC_KEY = process.env.PUBLIC_VAPID_KEY || 'BNqjZcSrxDzfY2S36e1sNne9Mzw6hWnxYHyJysWN9ZpvBxVDThtvMCiKmxufVRUyoBL8ZE4RqVDlU5s636Ayhls';
 const VAPID_PRIVATE_KEY = process.env.PRIVATE_VAPID_KEY || '-8qg68XULGxzg8CPtcQNxhgaywt7XIaF1_NTLhcD7Y4';
 

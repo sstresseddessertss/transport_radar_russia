@@ -507,6 +507,9 @@ function validateSubscription(subscription) {
   return { valid: true };
 }
 
+// Minimum endpoint length validation (typical push endpoints are much longer than this)
+const MIN_ENDPOINT_LENGTH = 10;
+
 // Rate limiting for subscription endpoints
 const subscriptionRateLimit = new Map();
 const SUBSCRIPTION_RATE_LIMIT_WINDOW = 60000; // 1 minute
@@ -595,31 +598,32 @@ app.post('/api/stops/:stopId/subscribe', async (req, res) => {
       pushSubscriptions.set(stopId, activeSubscriptions);
     }
     
-    const subs = pushSubscriptions.get(stopId);
+    // Get updated subscriptions list after potential cleanup
+    const currentSubscriptions = pushSubscriptions.get(stopId);
     
     // Check if this subscription already exists
-    const existingIndex = subs.findIndex(
+    const existingIndex = currentSubscriptions.findIndex(
       sub => sub.subscription.endpoint === subscription.endpoint
     );
     
     if (existingIndex >= 0) {
       // Update existing subscription
-      subs[existingIndex] = { 
+      currentSubscriptions[existingIndex] = { 
         subscription, 
         notificationMinutes: notificationMinutes || 3,
-        createdAt: subs[existingIndex].createdAt || new Date().toISOString(),
+        createdAt: currentSubscriptions[existingIndex].createdAt || new Date().toISOString(),
         lastActive: new Date().toISOString()
       };
       console.log(`✏️ Subscription updated for stop ${stopId}`);
     } else {
       // Add new subscription
-      subs.push({ 
+      currentSubscriptions.push({ 
         subscription, 
         notificationMinutes: notificationMinutes || 3,
         createdAt: new Date().toISOString(),
         lastActive: new Date().toISOString()
       });
-      console.log(`➕ Subscription added for stop ${stopId}, total: ${subs.length}`);
+      console.log(`➕ Subscription added for stop ${stopId}, total: ${currentSubscriptions.length}`);
     }
     
     res.json({ success: true, message: 'Subscription added successfully' });
@@ -640,7 +644,7 @@ app.post('/api/stops/:stopId/unsubscribe', async (req, res) => {
   }
   
   // Validate endpoint format
-  if (typeof endpoint !== 'string' || endpoint.length < 10) {
+  if (typeof endpoint !== 'string' || endpoint.length < MIN_ENDPOINT_LENGTH) {
     return res.status(400).json({ error: 'Invalid endpoint format' });
   }
   
