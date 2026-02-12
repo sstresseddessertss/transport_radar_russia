@@ -1,0 +1,45 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [ main, feature/*, copilot/* ]
+  pull_request:
+    branches: [ main, feature/*, copilot/* ]
+
+jobs:
+  push-emulation-test:
+    name: Push Notification Emulation Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run push notification emulation test
+        env:
+          # Use mock VAPID keys for pull requests from forks
+          # Real secrets are only available for protected branches
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY || 'BNqjZcSrxDzfY2S36e1sNne9Mzw6hWnxYHyJysWN9ZpvBxVDThtvMCiKmxufVRUyoBL8ZE4RqVDlU5s636Ayhls' }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY || '-8qg68XULGxzg8CPtcQNxhgaywt7XIaF1_NTLhcD7Y4' }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT || 'mailto:test@example.com' }}
+        run: npm run test:push
+      
+      - name: Test summary
+        if: always()
+        run: |
+          echo "### Push Notification Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ $? -eq 0 ]; then
+            echo "✅ Push notification emulation test passed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Push notification emulation test failed" >> $GITHUB_STEP_SUMMARY
+          fi

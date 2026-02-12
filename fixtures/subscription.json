@@ -1,0 +1,9 @@
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/mock-endpoint-for-testing",
+  "expirationTime": null,
+  "keys": {
+    "p256dh": "BNoRDbb84JGm8g5Z5CFxurSqsXWJ11eSXYc8u3FKqKYVdOhXsVqF9Xj7z7vGKvzNj3N0K3n7wLK5B3j3B4j3B1A=",
+    "auth": "tBHItJI5svbpez7KI4CCXg=="
+  }
+}
+
