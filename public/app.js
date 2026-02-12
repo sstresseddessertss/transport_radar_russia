@@ -1,15 +1,15 @@
 // State
 let stops = [];
 let selectedDeparture = null;
-let selectedDestination = null;
 let availableTrams = [];
 let selectedTrams = new Set();
 let monitoringActive = false;
 let monitoringInterval = null;
+let fetchFailureCount = 0;
+const MAX_FETCH_FAILURES = 3;
 
 // DOM elements
 const departureSelect = document.getElementById('departure-stop');
-const destinationSelect = document.getElementById('destination-stop');
 const tramSelectionGroup = document.getElementById('tram-selection-group');
 const tramCheckboxesContainer = document.getElementById('tram-checkboxes');
 const monitoringBtn = document.getElementById('monitoring-btn');
@@ -52,13 +52,6 @@ function populateStopSelects() {
         departureOption.dataset.name = stop.name;
         departureOption.dataset.direction = stop.direction;
         departureSelect.appendChild(departureOption);
-        
-        const destinationOption = document.createElement('option');
-        destinationOption.value = stop.uuid;
-        destinationOption.textContent = label;
-        destinationOption.dataset.name = stop.name;
-        destinationOption.dataset.direction = stop.direction;
-        destinationSelect.appendChild(destinationOption);
     });
 }
 
@@ -77,17 +70,6 @@ departureSelect.addEventListener('change', async (e) => {
     
     // Fetch available trams
     await fetchAvailableTrams();
-});
-
-// Handle destination stop selection
-destinationSelect.addEventListener('change', () => {
-    const uuid = destinationSelect.value;
-    selectedDestination = uuid ? stops.find(s => s.uuid === uuid) : null;
-    
-    // If monitoring is active, update results with new filtering
-    if (monitoringActive) {
-        updateResults();
-    }
 });
 
 // Fetch available trams for selected departure stop
@@ -190,6 +172,9 @@ function startMonitoring() {
     monitoringBtn.classList.add('monitoring-btn-on');
     resultsSection.style.display = 'block';
     
+    // Reset failure count when starting monitoring
+    fetchFailureCount = 0;
+    
     // Initial fetch
     updateResults();
     
@@ -223,10 +208,21 @@ async function updateResults() {
         
         const data = await response.json();
         
+        // Reset failure count on success
+        fetchFailureCount = 0;
+        
         displayResults(data);
         
     } catch (error) {
-        showError('Ошибка при обновлении данных: ' + error.message);
+        fetchFailureCount++;
+        
+        // Only show error to user after multiple consecutive failures
+        if (fetchFailureCount >= MAX_FETCH_FAILURES) {
+            showError('Ошибка при обновлении данных: ' + error.message);
+        } else {
+            // Silent retry - just log to console
+            console.warn(`Fetch attempt ${fetchFailureCount} failed, will retry on next interval:`, error.message);
+        }
     }
 }
 
@@ -245,16 +241,6 @@ function displayResults(data) {
     data.routePath.forEach(route => {
         if (!selectedTrams.has(route.number)) {
             return; // Skip unselected trams
-        }
-        
-        // Filter by destination if selected
-        if (selectedDestination) {
-            // Check if this route is going in the right direction
-            // This is a simple heuristic - in real app might need more sophisticated logic
-            const isCorrectDirection = shouldIncludeRoute(route);
-            if (!isCorrectDirection) {
-                return;
-            }
         }
         
         if (!tramsByNumber[route.number]) {
@@ -316,23 +302,6 @@ function displayResults(data) {
     if (sortedTramNumbers.length === 0) {
         resultsContainer.innerHTML = '<div class="no-arrivals">Нет данных для выбранных трамваев</div>';
     }
-}
-
-// Determine if a route should be included based on destination filtering
-function shouldIncludeRoute(route) {
-    if (!selectedDestination) {
-        return true; // No filtering
-    }
-    
-    // Simple heuristic: check if lastStopName matches destination name
-    // In a real app, this would need more sophisticated routing logic
-    const destinationName = selectedDestination.name;
-    const routeDestination = route.lastStopName;
-    
-    // Check if route is going towards the destination
-    // This is simplified - real implementation would need full route data
-    return routeDestination.includes(destinationName) || 
-           destinationName.includes(routeDestination);
 }
 
 // Show/hide error message
