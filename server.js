@@ -41,7 +41,39 @@ const MAX_IMPORTS_PER_WINDOW = 10;
 
 // Track recently sent notifications to avoid spam
 const recentNotifications = new Map();
-const NOTIFICATION_COOLDOWN = 300000; // 5 minutes
+const NOTIFICATION_COOLDOWN = parseInt(process.env.NOTIFICATION_COOLDOWN) || 300000; // 5 minutes
+
+// Retry configuration for push notifications
+const PUSH_RETRY_ATTEMPTS = 3;
+const PUSH_RETRY_DELAY = 1000; // 1 second
+
+/**
+ * Send push notification with retry logic
+ * @param {Object} subscription - Push subscription object
+ * @param {string} payload - Notification payload
+ * @param {number} retries - Number of retry attempts remaining
+ * @returns {Promise<Object>} - Send result
+ */
+async function sendPushWithRetry(subscription, payload, retries = PUSH_RETRY_ATTEMPTS) {
+  try {
+    const result = await webpush.sendNotification(subscription, payload);
+    return { success: true, result };
+  } catch (error) {
+    // Don't retry on client errors (4xx) except for rate limiting (429)
+    if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429) {
+      return { success: false, error, retryable: false };
+    }
+    
+    // Retry on server errors (5xx) or network errors
+    if (retries > 0) {
+      console.log(`Push send failed, retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, PUSH_RETRY_DELAY));
+      return sendPushWithRetry(subscription, payload, retries - 1);
+    }
+    
+    return { success: false, error, retryable: true };
+  }
+}
 
 function checkRateLimit(ip) {
   const now = Date.now();
@@ -106,7 +138,7 @@ async function checkAndSendPushNotifications(stopId, routePath) {
           const stop = stopsData?.stops?.find(s => s.uuid === stopId);
           const stopName = stop ? stop.name : 'остановку';
           
-          // Send push notification
+          // Send push notification with retry
           const payload = JSON.stringify({
             title: '🚊 Трамвай приближается',
             body: `Трамвай ${route.number} прибывает через ${arrivalMinutes} мин на ${stopName}`,
@@ -120,12 +152,20 @@ async function checkAndSendPushNotifications(stopId, routePath) {
             }
           });
           
-          await webpush.sendNotification(subscription, payload);
+          const sendResult = await sendPushWithRetry(subscription, payload);
           
-          // Update last sent time
-          recentNotifications.set(notifKey, now);
-          
-          console.log(`Push notification sent for tram ${route.number} at stop ${stopId}`);
+          if (sendResult.success) {
+            // Update last sent time
+            recentNotifications.set(notifKey, now);
+            console.log(`✅ Push notification sent for tram ${route.number} at stop ${stopId}`);
+          } else if (!sendResult.retryable) {
+            // Non-retryable error (likely invalid subscription)
+            console.log(`❌ Invalid subscription detected for stop ${stopId}, will be removed`);
+            throw sendResult.error; // Let outer catch handle removal
+          } else {
+            // Retryable error but all retries exhausted
+            console.error(`❌ Failed to send notification after ${PUSH_RETRY_ATTEMPTS} attempts:`, sendResult.error.message);
+          }
         }
       }
     } catch (error) {
@@ -439,13 +479,96 @@ app.get('/api/vapid-public-key', (req, res) => {
   res.json({ publicKey: VAPID_PUBLIC_KEY });
 });
 
+// Validation helper for subscription objects
+function validateSubscription(subscription) {
+  if (!subscription || typeof subscription !== 'object') {
+    return { valid: false, error: 'Subscription must be an object' };
+  }
+  
+  if (!subscription.endpoint || typeof subscription.endpoint !== 'string') {
+    return { valid: false, error: 'Subscription endpoint is required and must be a string' };
+  }
+  
+  if (!subscription.keys || typeof subscription.keys !== 'object') {
+    return { valid: false, error: 'Subscription keys are required' };
+  }
+  
+  if (!subscription.keys.p256dh || !subscription.keys.auth) {
+    return { valid: false, error: 'Subscription keys must include p256dh and auth' };
+  }
+  
+  // Validate endpoint URL format
+  try {
+    new URL(subscription.endpoint);
+  } catch (error) {
+    return { valid: false, error: 'Invalid endpoint URL format' };
+  }
+  
+  return { valid: true };
+}
+
+// Minimum endpoint length validation (typical push endpoints are much longer than this)
+const MIN_ENDPOINT_LENGTH = 10;
+
+// Rate limiting for subscription endpoints
+const subscriptionRateLimit = new Map();
+const SUBSCRIPTION_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_SUBSCRIPTIONS_PER_WINDOW = 5;
+
+function checkSubscriptionRateLimit(ip) {
+  const now = Date.now();
+  
+  if (!subscriptionRateLimit.has(ip)) {
+    subscriptionRateLimit.set(ip, []);
+  }
+  
+  const requests = subscriptionRateLimit.get(ip);
+  
+  // Remove old requests outside the time window
+  const recentRequests = requests.filter(time => now - time < SUBSCRIPTION_RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= MAX_SUBSCRIPTIONS_PER_WINDOW) {
+    return false;
+  }
+  
+  recentRequests.push(now);
+  subscriptionRateLimit.set(ip, recentRequests);
+  
+  return true;
+}
+
 // Subscribe to push notifications for a stop
 app.post('/api/stops/:stopId/subscribe', async (req, res) => {
   const { stopId } = req.params;
   const { subscription, notificationMinutes } = req.body;
   
+  // Rate limiting check
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkSubscriptionRateLimit(clientIp)) {
+    return res.status(429).json({ 
+      error: 'Слишком много запросов на подписку. Попробуйте позже.' 
+    });
+  }
+  
+  // Validate required fields
   if (!stopId || !subscription) {
     return res.status(400).json({ error: 'stopId and subscription are required' });
+  }
+  
+  // Validate subscription object
+  const validation = validateSubscription(subscription);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+  
+  // Validate notificationMinutes if provided
+  if (notificationMinutes !== undefined) {
+    const minutes = parseInt(notificationMinutes);
+    if (isNaN(minutes) || minutes < 1 || minutes > 60) {
+      return res.status(400).json({ 
+        error: 'notificationMinutes must be a number between 1 and 60' 
+      });
+    }
   }
   
   try {
@@ -455,20 +578,53 @@ app.post('/api/stops/:stopId/subscribe', async (req, res) => {
     
     const subscriptions = pushSubscriptions.get(stopId);
     
+    // Limit subscriptions per stop (prevent abuse)
+    const MAX_SUBSCRIPTIONS_PER_STOP = 100;
+    if (subscriptions.length >= MAX_SUBSCRIPTIONS_PER_STOP) {
+      // Remove oldest inactive subscriptions to make room
+      const now = Date.now();
+      const activeSubscriptions = subscriptions.filter(sub => {
+        const subKey = `${sub.subscription.endpoint}_${stopId}`;
+        const lastActive = recentNotifications.get(subKey);
+        return lastActive && (now - lastActive) < 86400000; // Active in last 24h
+      });
+      
+      if (activeSubscriptions.length >= MAX_SUBSCRIPTIONS_PER_STOP) {
+        return res.status(429).json({ 
+          error: 'Слишком много подписок на эту остановку' 
+        });
+      }
+      
+      pushSubscriptions.set(stopId, activeSubscriptions);
+    }
+    
+    // Get updated subscriptions list after potential cleanup
+    const currentSubscriptions = pushSubscriptions.get(stopId);
+    
     // Check if this subscription already exists
-    const existingIndex = subscriptions.findIndex(
+    const existingIndex = currentSubscriptions.findIndex(
       sub => sub.subscription.endpoint === subscription.endpoint
     );
     
     if (existingIndex >= 0) {
       // Update existing subscription
-      subscriptions[existingIndex] = { subscription, notificationMinutes: notificationMinutes || 3 };
+      currentSubscriptions[existingIndex] = { 
+        subscription, 
+        notificationMinutes: notificationMinutes || 3,
+        createdAt: currentSubscriptions[existingIndex].createdAt || new Date().toISOString(),
+        lastActive: new Date().toISOString()
+      };
+      console.log(`✏️ Subscription updated for stop ${stopId}`);
     } else {
       // Add new subscription
-      subscriptions.push({ subscription, notificationMinutes: notificationMinutes || 3 });
+      currentSubscriptions.push({ 
+        subscription, 
+        notificationMinutes: notificationMinutes || 3,
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString()
+      });
+      console.log(`➕ Subscription added for stop ${stopId}, total: ${currentSubscriptions.length}`);
     }
-    
-    console.log(`Subscription added for stop ${stopId}, total: ${subscriptions.length}`);
     
     res.json({ success: true, message: 'Subscription added successfully' });
   } catch (error) {
@@ -482,8 +638,14 @@ app.post('/api/stops/:stopId/unsubscribe', async (req, res) => {
   const { stopId } = req.params;
   const { endpoint } = req.body;
   
+  // Validate required fields
   if (!stopId || !endpoint) {
     return res.status(400).json({ error: 'stopId and endpoint are required' });
+  }
+  
+  // Validate endpoint format
+  if (typeof endpoint !== 'string' || endpoint.length < MIN_ENDPOINT_LENGTH) {
+    return res.status(400).json({ error: 'Invalid endpoint format' });
   }
   
   try {
@@ -492,19 +654,29 @@ app.post('/api/stops/:stopId/unsubscribe', async (req, res) => {
     }
     
     const subscriptions = pushSubscriptions.get(stopId);
+    const initialLength = subscriptions.length;
+    
     const filteredSubscriptions = subscriptions.filter(
       sub => sub.subscription.endpoint !== endpoint
     );
     
+    const removedCount = initialLength - filteredSubscriptions.length;
+    
     if (filteredSubscriptions.length === 0) {
       pushSubscriptions.delete(stopId);
+      console.log(`🗑️ All subscriptions removed for stop ${stopId}`);
     } else {
       pushSubscriptions.set(stopId, filteredSubscriptions);
+      if (removedCount > 0) {
+        console.log(`➖ Subscription removed for stop ${stopId} (${filteredSubscriptions.length} remaining)`);
+      }
     }
     
-    console.log(`Subscription removed for stop ${stopId}`);
-    
-    res.json({ success: true, message: 'Subscription removed successfully' });
+    if (removedCount === 0) {
+      res.json({ success: true, message: 'No matching subscription found' });
+    } else {
+      res.json({ success: true, message: 'Subscription removed successfully' });
+    }
   } catch (error) {
     console.error('Error removing subscription:', error);
     res.status(500).json({ error: 'Failed to remove subscription' });

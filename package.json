@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node test-push-notifications.js",
+    "test:push": "node test-push.js --help",
+    "generate-keys": "node test-push.js --generate-keys"
   },
   "keywords": [
     "moscow",
