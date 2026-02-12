@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SearchableStopDropdown Demo</title>
+    <link rel="stylesheet" href="SearchableStopDropdown.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4299e1;
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            color: #a0aec0;
+            margin-bottom: 30px;
+        }
+        
+        .demo-section {
+            background: #2d3748;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 2px solid #4a5568;
+        }
+        
+        .demo-section h2 {
+            color: #4299e1;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        
+        .selected-stop {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1a202c;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .selected-stop-label {
+            color: #a0aec0;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .selected-stop-value {
+            color: #e2e8f0;
+            font-size: 16px;
+        }
+        
+        .features-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .features-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .features-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #48bb78;
+            font-weight: bold;
+        }
+        
+        code {
+            background: #1a202c;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #f6ad55;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚊 SearchableStopDropdown Component</h1>
+    <p class="description">
+        A reusable vanilla JavaScript component for searchable dropdowns with advanced features
+        like debouncing, caching, pagination, and full keyboard navigation.
+    </p>
+
+    <div class="demo-section">
+        <h2>Demo</h2>
+        <div id="dropdown-container"></div>
+        
+        <div id="selected-info" class="selected-stop" style="display: none;">
+            <div class="selected-stop-label">Selected Stop:</div>
+            <div class="selected-stop-value" id="selected-value"></div>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2>Features</h2>
+        <ul class="features-list">
+            <li><strong>Debounced Search:</strong> Delays API calls by 300ms (configurable) to reduce server load</li>
+            <li><strong>Client-side Caching:</strong> Caches results for 5 minutes to improve performance</li>
+            <li><strong>Request Cancellation:</strong> Automatically cancels in-flight requests when new searches start</li>
+            <li><strong>Keyboard Navigation:</strong> Arrow keys to navigate, Enter to select, Escape to close</li>
+            <li><strong>Accessibility:</strong> Full ARIA support for screen readers</li>
+            <li><strong>Pagination:</strong> "Load More" button for large result sets</li>
+            <li><strong>Graceful States:</strong> Loading indicators, error messages, and no-results feedback</li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <h2>Usage</h2>
+        <p>Include the CSS and JavaScript files:</p>
+        <pre style="background: #1a202c; padding: 15px; border-radius: 8px; overflow-x: auto;">
+<code>&lt;link rel="stylesheet" href="SearchableStopDropdown.css"&gt;
+&lt;script src="SearchableStopDropdown.js"&gt;&lt;/script&gt;</code></pre>
+
+        <p style="margin-top: 20px;">Initialize the component:</p>
+        <pre style="background: #1a202c; padding: 15px; border-radius: 8px; overflow-x: auto;">
+<code>const dropdown = new SearchableStopDropdown({
+    containerId: 'my-container',
+    value: '',
+    onChange: (stop) => {
+        console.log('Selected:', stop);
+    },
+    placeholder: 'Search for a stop...',
+    debounceMs: 300,  // Optional, default: 300
+    pageSize: 20      // Optional, default: 20
+});</code></pre>
+    </div>
+
+    <div class="demo-section">
+        <h2>API Endpoint</h2>
+        <p>The component expects a backend endpoint at <code>GET /api/stops</code> with the following query parameters:</p>
+        <ul class="features-list">
+            <li><code>prefix</code>: Search term for filtering stops</li>
+            <li><code>page</code>: Page number (1-based)</li>
+            <li><code>page_size</code>: Number of results per page (1-100)</li>
+        </ul>
+        <p style="margin-top: 15px;">Expected response format:</p>
+        <pre style="background: #1a202c; padding: 15px; border-radius: 8px; overflow-x: auto;">
+<code>{
+    "stops": [
+        {
+            "name": "Stop Name",
+            "uuid": "unique-id",
+            "direction": "direction info"
+        }
+    ],
+    "meta": {
+        "total": 100,
+        "page": 1,
+        "page_size": 20,
+        "total_pages": 5,
+        "has_next": true,
+        "has_prev": false
+    }
+}</code></pre>
+    </div>
+
+    <script src="SearchableStopDropdown.js"></script>
+    <script>
+        // Initialize the dropdown
+        const dropdown = new SearchableStopDropdown({
+            containerId: 'dropdown-container',
+            onChange: function(stop) {
+                const selectedInfo = document.getElementById('selected-info');
+                const selectedValue = document.getElementById('selected-value');
+                
+                selectedInfo.style.display = 'block';
+                selectedValue.textContent = `${stop.name} (${stop.direction}) - ID: ${stop.uuid}`;
+                
+                console.log('Selected stop:', stop);
+            },
+            placeholder: 'Type to search for stops...',
+            debounceMs: 300,
+            pageSize: 20
+        });
+    </script>
+</body>
+</html>
