@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "playwright test",
+    "test:unit": "playwright test tests/analytics.spec.js",
+    "test:e2e": "playwright test tests/analytics-e2e.spec.js",
+    "test:headed": "playwright test --headed"
   },
   "keywords": [
     "moscow",
@@ -21,5 +25,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

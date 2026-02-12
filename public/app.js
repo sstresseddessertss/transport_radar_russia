@@ -37,6 +37,13 @@ let notifiedTrams = new Set(); // Track which trams have been notified to avoid 
 // Initialize
 async function init() {
     try {
+        // Initialize analytics
+        const configResponse = await fetch('/api/config');
+        const config = await configResponse.json();
+        if (config.yandexMetrikaId) {
+            Analytics.init(config.yandexMetrikaId);
+        }
+        
         const response = await fetch('/api/stops');
         if (!response.ok) {
             throw new Error('Не удалось загрузить список остановок');
@@ -87,6 +94,13 @@ departureSelect.addEventListener('change', async (e) => {
     }
     
     selectedDeparture = stops.find(s => s.uuid === uuid);
+    
+    // Track stop selection event
+    Analytics.trackStopSelected({
+        stop_id: selectedDeparture.uuid,
+        stop_name: selectedDeparture.name,
+        route: selectedDeparture.direction
+    });
     
     // Fetch available trams
     await fetchAvailableTrams();
@@ -600,6 +614,14 @@ confirmNotificationBtn.addEventListener('click', () => {
     
     activeNotifications.push(notification);
     
+    // Track push subscription event
+    Analytics.trackSubscribePush({
+        stop_id: selectedDeparture.uuid,
+        route: tramNumber,
+        subscription_status: 'subscribed',
+        notification_id: notification.id.toString()
+    });
+    
     // Reset notified set for this tram
     notifiedTrams.delete(`${tramNumber}_${minutes}`);
     
@@ -645,7 +667,19 @@ function updateActiveNotificationsDisplay() {
 
 // Remove notification
 function removeNotification(id) {
+    const removedNotif = activeNotifications.find(n => n.id === id);
     activeNotifications = activeNotifications.filter(n => n.id !== id);
+    
+    // Track unsubscribe event
+    if (removedNotif && selectedDeparture) {
+        Analytics.trackSubscribePush({
+            stop_id: selectedDeparture.uuid,
+            route: removedNotif.tramNumber,
+            subscription_status: 'unsubscribed',
+            notification_id: id.toString()
+        });
+    }
+    
     updateActiveNotificationsDisplay();
 }
 
@@ -696,12 +730,25 @@ function checkNotifications(data) {
 // Send browser notification
 function sendBrowserNotification(notif, arrivalMinutes) {
     if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🚊 Радар трамваев Москвы', {
+        const notification = new Notification('🚊 Радар трамваев Москвы', {
             body: `Трамвай ${notif.tramNumber} прибывает через ${arrivalMinutes} мин на остановку ${notif.stopName}`,
             icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚊</text></svg>',
             requireInteraction: false,
             tag: `tram-${notif.tramNumber}`
         });
+        
+        // Track notification click
+        notification.onclick = function() {
+            if (selectedDeparture) {
+                Analytics.trackNotificationClicked({
+                    stop_id: selectedDeparture.uuid,
+                    route: notif.tramNumber,
+                    notification_id: notif.id.toString()
+                });
+            }
+            window.focus();
+            this.close();
+        };
     }
 }
 
