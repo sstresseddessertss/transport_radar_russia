@@ -1,9 +1,21 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
+const webpush = require('web-push');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// VAPID keys for Web Push (in production, store in environment variables)
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BGfdeIltToBqItxeeAskdTLYZ6SWUSVgZ_LokE4JseCF2p3nBZB7ZdzpYDPPRnnMwXYgE3hUvKxtyAzHGw5DV38';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'tgIFaCRTyErycHAR_JewsPRLBJirUu8Yab50NfcoYyY';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@transport-radar.ru';
+
+webpush.setVapidDetails(
+  VAPID_SUBJECT,
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -18,6 +30,10 @@ let stopsData = null;
 // Structure: { stopId: { tramNumber: { currentTrams: Set, history: Array } } }
 const tramTracking = new Map();
 const MAX_HISTORY_ITEMS = 3;
+
+// In-memory storage for push subscriptions
+// Structure: { stopId: [{ subscription, user_id?, created_at, last_active, notify_minutes, tram_numbers }] }
+const subscriptions = new Map();
 
 // Simple rate limiting for stop import endpoint
 const importRateLimit = new Map();
@@ -323,9 +339,276 @@ app.get('/api/history/:uuid', (req, res) => {
   }
 });
 
+// API endpoint to get VAPID public key
+app.get('/api/push/vapid-public-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+// API endpoint to subscribe to push notifications for a stop
+app.post('/api/stops/:stopId/subscribe', (req, res) => {
+  const { stopId } = req.params;
+  const { subscription, user_id, notify_minutes, tram_numbers } = req.body;
+  
+  // Validate subscription object
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ 
+      error: 'Отсутствует endpoint подписки' 
+    });
+  }
+  
+  if (!subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+    return res.status(400).json({ 
+      error: 'Отсутствуют ключи подписки (p256dh, auth)' 
+    });
+  }
+  
+  // Validate notify_minutes
+  if (!notify_minutes || notify_minutes < 1 || notify_minutes > 30) {
+    return res.status(400).json({ 
+      error: 'Некорректное значение notify_minutes (должно быть 1-30)' 
+    });
+  }
+  
+  // Validate tram_numbers
+  if (!tram_numbers || !Array.isArray(tram_numbers) || tram_numbers.length === 0) {
+    return res.status(400).json({ 
+      error: 'Укажите хотя бы один номер трамвая' 
+    });
+  }
+  
+  try {
+    // Get or create subscriptions array for this stop
+    if (!subscriptions.has(stopId)) {
+      subscriptions.set(stopId, []);
+    }
+    
+    const stopSubscriptions = subscriptions.get(stopId);
+    
+    // Check if subscription already exists (by endpoint)
+    const existingIndex = stopSubscriptions.findIndex(
+      sub => sub.subscription.endpoint === subscription.endpoint
+    );
+    
+    const subscriptionData = {
+      subscription,
+      user_id: user_id || null,
+      created_at: existingIndex === -1 ? new Date().toISOString() : stopSubscriptions[existingIndex].created_at,
+      last_active: new Date().toISOString(),
+      notify_minutes,
+      tram_numbers,
+      notified_trams: new Set() // Track which trams have been notified
+    };
+    
+    if (existingIndex !== -1) {
+      // Update existing subscription
+      stopSubscriptions[existingIndex] = subscriptionData;
+    } else {
+      // Add new subscription
+      stopSubscriptions.push(subscriptionData);
+    }
+    
+    console.log(`Subscription ${existingIndex !== -1 ? 'updated' : 'added'} for stop ${stopId}, trams: ${tram_numbers.join(', ')}, notify at ${notify_minutes} min`);
+    
+    res.json({ 
+      success: true,
+      message: existingIndex !== -1 ? 'Подписка обновлена' : 'Подписка создана'
+    });
+    
+  } catch (error) {
+    console.error('Error subscribing:', error);
+    res.status(500).json({ 
+      error: 'Ошибка при создании подписки',
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to unsubscribe from push notifications
+app.post('/api/stops/:stopId/unsubscribe', (req, res) => {
+  const { stopId } = req.params;
+  const { endpoint } = req.body;
+  
+  if (!endpoint) {
+    return res.status(400).json({ 
+      error: 'Отсутствует endpoint для удаления' 
+    });
+  }
+  
+  try {
+    if (!subscriptions.has(stopId)) {
+      return res.status(404).json({ 
+        error: 'Подписки для этой остановки не найдены' 
+      });
+    }
+    
+    const stopSubscriptions = subscriptions.get(stopId);
+    const initialLength = stopSubscriptions.length;
+    
+    // Remove subscription by endpoint
+    const filteredSubscriptions = stopSubscriptions.filter(
+      sub => sub.subscription.endpoint !== endpoint
+    );
+    
+    if (filteredSubscriptions.length === initialLength) {
+      return res.status(404).json({ 
+        error: 'Подписка не найдена' 
+      });
+    }
+    
+    subscriptions.set(stopId, filteredSubscriptions);
+    
+    console.log(`Subscription removed for stop ${stopId}`);
+    
+    res.json({ 
+      success: true,
+      message: 'Подписка удалена'
+    });
+    
+  } catch (error) {
+    console.error('Error unsubscribing:', error);
+    res.status(500).json({ 
+      error: 'Ошибка при удалении подписки',
+      details: error.message 
+    });
+  }
+});
+
+// Background worker to check for approaching trams and send push notifications
+async function checkAndSendPushNotifications() {
+  // Iterate through all stops with subscriptions
+  for (const [stopId, stopSubscriptions] of subscriptions.entries()) {
+    if (stopSubscriptions.length === 0) continue;
+    
+    try {
+      // Fetch current stop data
+      const url = `https://moscowtransport.app/api/stop_v2/${stopId}`;
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:79.0) Gecko/20100101 Firefox/79.0'
+        }
+      });
+      
+      if (!response.ok) {
+        console.warn(`Failed to fetch data for stop ${stopId}: ${response.status}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      if (!data.routePath || data.routePath.length === 0) {
+        continue;
+      }
+      
+      // Check each subscription
+      for (const subData of stopSubscriptions) {
+        try {
+          // Check each tram number in the subscription
+          for (const tramNumber of subData.tram_numbers) {
+            // Find route for this tram
+            const route = data.routePath.find(r => r.number === tramNumber);
+            
+            if (!route || !route.externalForecast) {
+              continue;
+            }
+            
+            // Find earliest arrival time with GPS data
+            let minTime = Infinity;
+            let hasTelemetry = false;
+            
+            route.externalForecast.forEach(forecast => {
+              if (forecast.byTelemetry === 1 && forecast.time < minTime) {
+                minTime = forecast.time;
+                hasTelemetry = true;
+              }
+            });
+            
+            if (!hasTelemetry || minTime === Infinity) {
+              continue;
+            }
+            
+            const arrivalMinutes = Math.round(minTime / 60);
+            const notifKey = `${tramNumber}_${arrivalMinutes}`;
+            
+            // Check if we should send notification
+            if (arrivalMinutes <= subData.notify_minutes && 
+                arrivalMinutes > 0 && 
+                !subData.notified_trams.has(notifKey)) {
+              
+              // Get stop name
+              const stopName = data.name || 'остановка';
+              
+              // Send push notification
+              const payload = JSON.stringify({
+                title: '🚊 Радар трамваев Москвы',
+                body: `Трамвай ${tramNumber} прибывает через ${arrivalMinutes} мин на остановку ${stopName}`,
+                icon: '/icon-192.png',
+                badge: '/badge-72.png',
+                tag: `tram-${tramNumber}-${stopId}`,
+                data: {
+                  stopId,
+                  tramNumber,
+                  arrivalMinutes,
+                  stopName,
+                  url: '/'
+                }
+              });
+              
+              try {
+                await webpush.sendNotification(subData.subscription, payload);
+                console.log(`Push sent: Tram ${tramNumber} arriving in ${arrivalMinutes} min at ${stopName}`);
+                
+                // Mark as notified
+                subData.notified_trams.add(notifKey);
+                
+                // Clean up old notified trams (keep only recent ones)
+                if (subData.notified_trams.size > 20) {
+                  const toDelete = Array.from(subData.notified_trams).slice(0, 10);
+                  toDelete.forEach(key => subData.notified_trams.delete(key));
+                }
+                
+              } catch (pushError) {
+                console.error('Push notification error:', pushError);
+                
+                // If subscription is invalid/expired, remove it
+                if (pushError.statusCode === 410 || pushError.statusCode === 404) {
+                  console.log(`Removing invalid subscription for stop ${stopId}`);
+                  const filteredSubs = stopSubscriptions.filter(
+                    s => s.subscription.endpoint !== subData.subscription.endpoint
+                  );
+                  subscriptions.set(stopId, filteredSubs);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error processing subscription:', error);
+        }
+      }
+      
+    } catch (error) {
+      console.error(`Error checking stop ${stopId}:`, error);
+    }
+  }
+}
+
+// Start background worker (check every 20 seconds)
+let pushWorkerInterval = null;
+
+function startPushWorker() {
+  if (!pushWorkerInterval) {
+    console.log('Starting push notification worker...');
+    pushWorkerInterval = setInterval(checkAndSendPushNotifications, 20000);
+    // Also run immediately
+    checkAndSendPushNotifications();
+  }
+}
+
 // Start server
 async function start() {
   await loadStops();
+  
+  // Start push notification worker
+  startPushWorker();
   
   app.listen(PORT, () => {
     console.log(`🚊 Transport Radar Russia запущен на http://localhost:${PORT}`);
