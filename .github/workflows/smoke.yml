@@ -25,6 +25,7 @@ jobs:
         run: npm ci
       
       - name: Run push notification emulation test
+        id: push-test
         env:
           # Use mock VAPID keys for pull requests from forks
           # Real secrets are only available for protected branches
@@ -32,13 +33,14 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY || '-8qg68XULGxzg8CPtcQNxhgaywt7XIaF1_NTLhcD7Y4' }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT || 'mailto:test@example.com' }}
         run: npm run test:push
+        continue-on-error: false
       
       - name: Test summary
         if: always()
         run: |
           echo "### Push Notification Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ $? -eq 0 ]; then
+          if [ "${{ steps.push-test.outcome }}" == "success" ]; then
             echo "✅ Push notification emulation test passed successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Push notification emulation test failed" >> $GITHUB_STEP_SUMMARY
