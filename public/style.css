@@ -547,6 +547,97 @@ label {
     font-size: 0.85rem;
 }
 
+/* ETA Badge Styles */
+.eta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.80rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    cursor: help;
+    position: relative;
+}
+
+.eta-badge.high-confidence {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+}
+
+.eta-badge.medium-confidence {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    border: 1px solid #ffc107;
+}
+
+.eta-badge.low-confidence {
+    background-color: rgba(128, 128, 128, 0.15);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.eta-badge:hover {
+    transform: scale(1.05);
+}
+
+.eta-badge-icon {
+    font-size: 0.9em;
+}
+
+.eta-badge-time {
+    font-weight: 600;
+}
+
+/* Tooltip for confidence display */
+.eta-badge-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    margin-bottom: 5px;
+    border: 1px solid var(--border-color);
+    z-index: 1000;
+}
+
+.eta-badge:hover .eta-badge-tooltip {
+    opacity: 1;
+}
+
+.eta-badge-error {
+    background-color: rgba(255, 107, 107, 0.15);
+    color: var(--error-color);
+    border: 1px solid var(--error-color);
+    cursor: default;
+}
+
+.eta-badge-loading {
+    background-color: rgba(128, 128, 128, 0.1);
+    color: var(--text-muted);
+    border: 1px dashed var(--border-color);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
 footer {
     text-align: center;
     padding: 30px 20px;

@@ -10,6 +10,12 @@ const MAX_FETCH_FAILURES = 3;
 let expandedTrams = new Set(); // Track which tram blocks are expanded
 let arrivalHistory = {}; // Store arrival history for current stop
 
+// ETA state
+let etaCache = new Map(); // Cache ETA data: runId -> { eta, confidence, timestamp }
+let etaPollingInterval = null;
+const ETA_POLLING_INTERVAL = 20000; // 20 seconds
+const ETA_CACHE_DURATION = 25000; // 25 seconds
+
 // DOM elements
 const departureSelect = document.getElementById('departure-stop');
 const tramSelectionGroup = document.getElementById('tram-selection-group');
@@ -222,6 +228,9 @@ function startMonitoring() {
     
     // Set up polling every 30 seconds
     monitoringInterval = setInterval(updateResults, 30000);
+    
+    // Start ETA polling
+    startEtaPolling();
 }
 
 // Stop monitoring
@@ -239,6 +248,9 @@ function stopMonitoring() {
     
     // Clear expanded state
     expandedTrams.clear();
+    
+    // Stop ETA polling
+    stopEtaPolling();
 }
 
 // Update results
@@ -266,6 +278,9 @@ async function updateResults() {
         checkNotifications(data);
         
         displayResults(data);
+        
+        // Update ETA badges after displaying results
+        setTimeout(() => updateEtaBadges(), 500); // Small delay to ensure DOM is updated
         
     } catch (error) {
         fetchFailureCount++;
@@ -441,6 +456,186 @@ function displayResults(data) {
     if (sortedTramNumbers.length === 0) {
         resultsContainer.innerHTML = '<div class="no-arrivals">Нет данных для выбранных трамваев</div>';
     }
+}
+
+// Generate run ID for a forecast
+function generateRunId(stopUuid, tramNumber, forecast) {
+    const vehicleId = forecast.vehicleId || '';
+    const time = Math.round(forecast.time);
+    return `${stopUuid}_${tramNumber}_${vehicleId}_${time}`;
+}
+
+// Fetch ETA for a specific run
+async function fetchEta(runId) {
+    try {
+        // Check cache first
+        const cached = etaCache.get(runId);
+        if (cached && (Date.now() - cached.timestamp) < ETA_CACHE_DURATION) {
+            return cached;
+        }
+        
+        const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/eta`);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                // Run not found - data might be stale
+                return null;
+            }
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Cache the result
+        const etaData = {
+            eta: data.eta,
+            eta_seconds: data.eta_seconds,
+            confidence: data.confidence,
+            generated_at: data.generated_at,
+            timestamp: Date.now()
+        };
+        
+        etaCache.set(runId, etaData);
+        
+        return etaData;
+        
+    } catch (error) {
+        console.warn('ETA fetch error for', runId, ':', error.message);
+        return null;
+    }
+}
+
+// Create ETA badge element
+function createEtaBadge(etaData) {
+    const badge = document.createElement('span');
+    badge.className = 'eta-badge';
+    
+    if (!etaData) {
+        badge.classList.add('eta-badge-error');
+        badge.innerHTML = '<span class="eta-badge-icon">⏱️</span><span class="eta-badge-time">N/A</span>';
+        badge.setAttribute('aria-label', 'ETA недоступно');
+        return badge;
+    }
+    
+    // Determine confidence class
+    if (etaData.confidence >= 0.80) {
+        badge.classList.add('high-confidence');
+    } else if (etaData.confidence >= 0.60) {
+        badge.classList.add('medium-confidence');
+    } else {
+        badge.classList.add('low-confidence');
+    }
+    
+    // Format ETA time
+    const minutes = Math.round(etaData.eta_seconds / 60);
+    const timeText = minutes < 1 ? '<1 мин' : `${minutes} мин`;
+    
+    // Create badge content
+    badge.innerHTML = `
+        <span class="eta-badge-icon">⏱️</span>
+        <span class="eta-badge-time">${timeText}</span>
+    `;
+    
+    // Create tooltip
+    const tooltip = document.createElement('span');
+    tooltip.className = 'eta-badge-tooltip';
+    const confidencePercent = Math.round(etaData.confidence * 100);
+    tooltip.textContent = `Точность: ${confidencePercent}%`;
+    badge.appendChild(tooltip);
+    
+    // Set accessibility label
+    badge.setAttribute('aria-label', `ETA: ${timeText}, точность ${confidencePercent} процентов`);
+    badge.setAttribute('role', 'status');
+    
+    return badge;
+}
+
+// Update ETA badges for all visible forecasts
+async function updateEtaBadges() {
+    if (!monitoringActive || !selectedDeparture) {
+        return;
+    }
+    
+    // Find all time badges and add ETA badges next to them
+    const tramResults = document.querySelectorAll('.tram-result');
+    
+    for (const tramResult of tramResults) {
+        const tramNumber = tramResult.querySelector('.tram-number')?.textContent;
+        if (!tramNumber) continue;
+        
+        const timesDiv = tramResult.querySelector('.tram-times');
+        if (!timesDiv) continue;
+        
+        // Find all time badges
+        const timeBadges = timesDiv.querySelectorAll('.time-badge');
+        
+        // We need to match time badges with forecasts
+        // This requires re-fetching the data to get forecast details
+        // For simplicity, we'll add ETA to the first (soonest) forecast only
+        if (timeBadges.length > 0) {
+            const firstBadge = timeBadges[0];
+            
+            // Check if ETA badge already exists
+            let etaBadge = firstBadge.nextElementSibling;
+            if (etaBadge && etaBadge.classList.contains('eta-badge')) {
+                // Update existing badge
+                // For now, we'll skip updating existing badges to avoid complexity
+                continue;
+            }
+            
+            // Get the forecast data for this tram
+            // We need to fetch stop data to get forecasts
+            try {
+                const response = await fetch(`/api/stop/${selectedDeparture.uuid}`);
+                if (!response.ok) continue;
+                
+                const data = await response.json();
+                const route = data.routePath?.find(r => r.number === tramNumber);
+                
+                if (route && route.externalForecast && route.externalForecast.length > 0) {
+                    // Sort forecasts by time
+                    const forecasts = route.externalForecast.sort((a, b) => a.time - b.time);
+                    const firstForecast = forecasts[0];
+                    
+                    // Generate run ID
+                    const runId = generateRunId(selectedDeparture.uuid, tramNumber, firstForecast);
+                    
+                    // Fetch ETA
+                    const etaData = await fetchEta(runId);
+                    
+                    // Create and insert ETA badge
+                    const newEtaBadge = createEtaBadge(etaData);
+                    firstBadge.parentNode.insertBefore(newEtaBadge, firstBadge.nextSibling);
+                }
+            } catch (error) {
+                console.warn('Error updating ETA for tram', tramNumber, ':', error);
+            }
+        }
+    }
+}
+
+// Start ETA polling
+function startEtaPolling() {
+    if (etaPollingInterval) {
+        clearInterval(etaPollingInterval);
+    }
+    
+    // Initial update
+    updateEtaBadges();
+    
+    // Set up polling
+    etaPollingInterval = setInterval(updateEtaBadges, ETA_POLLING_INTERVAL);
+}
+
+// Stop ETA polling
+function stopEtaPolling() {
+    if (etaPollingInterval) {
+        clearInterval(etaPollingInterval);
+        etaPollingInterval = null;
+    }
+    
+    // Clear cache
+    etaCache.clear();
 }
 
 // Add stop by URL
