@@ -7,12 +7,9 @@
 
 const webpush = require('web-push');
 
-// Read environment variables
-const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-
 // Test subscription endpoint (fake endpoint for testing)
-const testSubscription = {
+// These are mock values for testing purposes only
+const TEST_SUBSCRIPTION = {
   endpoint: 'https://fcm.googleapis.com/fcm/send/mock-endpoint-for-testing',
   keys: {
     p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM=',
@@ -20,12 +17,15 @@ const testSubscription = {
   }
 };
 
-// Payload to send
-const payload = JSON.stringify({
+// Test payload template
+const TEST_PAYLOAD = {
   title: 'Smoke Test Notification',
-  body: 'This is a test push notification from CI',
-  timestamp: new Date().toISOString()
-});
+  body: 'This is a test push notification from CI'
+};
+
+// Read environment variables
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
 async function runPushEmulationTest() {
   console.log('=== Push Notification Emulation Test ===\n');
@@ -56,11 +56,15 @@ async function runPushEmulationTest() {
   
   // Test subscription
   console.log('Test Subscription:');
-  console.log(`  Endpoint: ${testSubscription.endpoint.substring(0, 50)}...`);
-  console.log(`  P256DH Key: ${testSubscription.keys.p256dh.substring(0, 30)}...`);
-  console.log(`  Auth Secret: ${testSubscription.keys.auth.substring(0, 20)}...\n`);
+  console.log(`  Endpoint: ${TEST_SUBSCRIPTION.endpoint.substring(0, 50)}...`);
+  console.log(`  P256DH Key: ${TEST_SUBSCRIPTION.keys.p256dh.substring(0, 30)}...`);
+  console.log(`  Auth Secret: ${TEST_SUBSCRIPTION.keys.auth.substring(0, 20)}...\n`);
   
   // Payload
+  const payload = JSON.stringify({
+    ...TEST_PAYLOAD,
+    timestamp: new Date().toISOString()
+  });
   console.log('Payload:');
   console.log(`  ${payload}\n`);
   
@@ -68,7 +72,7 @@ async function runPushEmulationTest() {
   console.log('Sending push notification...\n');
   
   try {
-    const result = await webpush.sendNotification(testSubscription, payload);
+    const result = await webpush.sendNotification(TEST_SUBSCRIPTION, payload);
     
     console.log('✓ Push notification sent successfully!\n');
     console.log('Response Details:');
