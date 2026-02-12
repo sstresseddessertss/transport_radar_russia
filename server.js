@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
+const { insertArrivalEvent, queryArrivalHistory, stopExists, seedSampleData } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,6 +25,11 @@ const importRateLimit = new Map();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const MAX_IMPORTS_PER_WINDOW = 10;
 
+// Rate limiting for history endpoint
+const historyRateLimit = new Map();
+const HISTORY_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_HISTORY_REQUESTS_PER_WINDOW = 30;
+
 function checkRateLimit(ip) {
   const now = Date.now();
   
@@ -42,6 +48,28 @@ function checkRateLimit(ip) {
   
   recentRequests.push(now);
   importRateLimit.set(ip, recentRequests);
+  
+  return true;
+}
+
+function checkHistoryRateLimit(ip) {
+  const now = Date.now();
+  
+  if (!historyRateLimit.has(ip)) {
+    historyRateLimit.set(ip, []);
+  }
+  
+  const requests = historyRateLimit.get(ip);
+  
+  // Remove old requests outside the time window
+  const recentRequests = requests.filter(time => now - time < HISTORY_RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= MAX_HISTORY_REQUESTS_PER_WINDOW) {
+    return false;
+  }
+  
+  recentRequests.push(now);
+  historyRateLimit.set(ip, recentRequests);
   
   return true;
 }
@@ -281,6 +309,15 @@ app.post('/api/track/:uuid', async (req, res) => {
           if (tramData.history.length > MAX_HISTORY_ITEMS) {
             tramData.history = tramData.history.slice(0, MAX_HISTORY_ITEMS);
           }
+          
+          // Persist arrival event to database
+          const vehicleId = tramId.split('_')[1] || tramNumber;
+          insertArrivalEvent(
+            uuid,
+            vehicleId,
+            arrivalTime.toISOString(),
+            JSON.stringify({ route: tramNumber })
+          );
         }
       });
       
@@ -293,6 +330,71 @@ app.post('/api/track/:uuid', async (req, res) => {
   } catch (error) {
     console.error('Error tracking trams:', error);
     res.status(500).json({ error: 'Ошибка отслеживания' });
+  }
+});
+
+// API endpoint to get persistent arrival history with pagination and filters
+app.get('/api/stops/:stopId/history', (req, res) => {
+  const { stopId } = req.params;
+  const { page, page_size, date_from, date_to, vehicle_id } = req.query;
+  
+  // Rate limiting check
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkHistoryRateLimit(clientIp)) {
+    return res.status(429).json({ 
+      error: 'Слишком много запросов. Попробуйте позже.' 
+    });
+  }
+  
+  // Validate stop exists
+  if (!stopsData) {
+    return res.status(500).json({ error: 'Stops data not loaded' });
+  }
+  
+  if (!stopExists(stopsData, stopId)) {
+    return res.status(404).json({ error: 'Stop not found' });
+  }
+  
+  // Validate and parse query parameters
+  let pageNum = 1;
+  let pageSizeNum = 20;
+  
+  if (page) {
+    pageNum = parseInt(page, 10);
+    if (isNaN(pageNum) || pageNum < 1) {
+      return res.status(400).json({ error: 'Invalid page parameter' });
+    }
+  }
+  
+  if (page_size) {
+    pageSizeNum = parseInt(page_size, 10);
+    if (isNaN(pageSizeNum) || pageSizeNum < 1 || pageSizeNum > 100) {
+      return res.status(400).json({ error: 'Invalid page_size parameter (must be 1-100)' });
+    }
+  }
+  
+  // Validate date formats if provided
+  if (date_from && !/^\d{4}-\d{2}-\d{2}$/.test(date_from)) {
+    return res.status(400).json({ error: 'Invalid date_from format (use YYYY-MM-DD)' });
+  }
+  
+  if (date_to && !/^\d{4}-\d{2}-\d{2}$/.test(date_to)) {
+    return res.status(400).json({ error: 'Invalid date_to format (use YYYY-MM-DD)' });
+  }
+  
+  try {
+    const result = queryArrivalHistory(stopId, {
+      page: pageNum,
+      pageSize: pageSizeNum,
+      dateFrom: date_from,
+      dateTo: date_to,
+      vehicleId: vehicle_id
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error querying arrival history:', error);
+    res.status(500).json({ error: 'Error retrieving arrival history' });
   }
 });
 
