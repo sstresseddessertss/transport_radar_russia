@@ -16,6 +16,9 @@ const monitoringBtn = document.getElementById('monitoring-btn');
 const resultsSection = document.getElementById('results-section');
 const resultsContainer = document.getElementById('results');
 const errorMessage = document.getElementById('error-message');
+const stopUrlInput = document.getElementById('stop-url-input');
+const addStopBtn = document.getElementById('add-stop-btn');
+const addStopMessage = document.getElementById('add-stop-message');
 
 // Initialize
 async function init() {
@@ -43,6 +46,9 @@ async function init() {
 
 // Populate stop dropdowns
 function populateStopSelects() {
+    // Clear existing options except the first one
+    departureSelect.innerHTML = '<option value="">Выберите остановку...</option>';
+    
     stops.forEach(stop => {
         const label = `${stop.name} (${stop.direction})`;
         
@@ -301,6 +307,90 @@ function displayResults(data) {
     
     if (sortedTramNumbers.length === 0) {
         resultsContainer.innerHTML = '<div class="no-arrivals">Нет данных для выбранных трамваев</div>';
+    }
+}
+
+// Add stop by URL
+addStopBtn.addEventListener('click', async () => {
+    const url = stopUrlInput.value.trim();
+    
+    if (!url) {
+        showAddStopMessage('Введите ссылку на остановку', 'error');
+        return;
+    }
+    
+    addStopBtn.disabled = true;
+    showAddStopMessage('Добавление...', '');
+    
+    try {
+        const response = await fetch('/api/stops/import', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || `Ошибка ${response.status}`);
+        }
+        
+        // Add to local stops array
+        stops.push(data.stop);
+        
+        // Sort stops
+        stops.sort((a, b) => {
+            const aLabel = `${a.name} (${a.direction})`;
+            const bLabel = `${b.name} (${b.direction})`;
+            return aLabel.localeCompare(bLabel, 'ru');
+        });
+        
+        // Refresh dropdown
+        populateStopSelects();
+        
+        // Clear input
+        stopUrlInput.value = '';
+        
+        // Show success message
+        showAddStopMessage(`✓ Остановка "${data.stop.name}" добавлена`, 'success');
+        
+        // Auto-select the newly added stop
+        departureSelect.value = data.stop.uuid;
+        departureSelect.dispatchEvent(new Event('change'));
+        
+    } catch (error) {
+        showAddStopMessage(error.message, 'error');
+    } finally {
+        addStopBtn.disabled = false;
+    }
+});
+
+// Allow Enter key to add stop
+stopUrlInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        addStopBtn.click();
+    }
+});
+
+// Show add stop message
+function showAddStopMessage(message, type) {
+    if (!message) {
+        addStopMessage.style.display = 'none';
+        addStopMessage.className = 'add-stop-message';
+        return;
+    }
+    
+    addStopMessage.textContent = message;
+    addStopMessage.className = `add-stop-message ${type}`;
+    addStopMessage.style.display = 'block';
+    
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            addStopMessage.style.display = 'none';
+        }, 5000);
     }
 }
 

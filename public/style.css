@@ -49,6 +49,91 @@ main {
     margin-bottom: 20px;
 }
 
+.add-stop-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.instruction {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.add-stop-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.stop-url-input {
+    flex: 1;
+    padding: 10px 12px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.stop-url-input:focus {
+    outline: none;
+    border-color: var(--accent-green);
+}
+
+.stop-url-input::placeholder {
+    color: var(--text-muted);
+}
+
+.add-stop-btn {
+    padding: 10px 20px;
+    background-color: var(--accent-green);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.add-stop-btn:hover {
+    background-color: var(--accent-green-hover);
+}
+
+.add-stop-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.add-stop-message {
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.add-stop-message.success {
+    background-color: rgba(76, 175, 80, 0.15);
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+}
+
+.add-stop-message.error {
+    background-color: var(--error-bg);
+    color: var(--error-color);
+    border: 1px solid var(--error-color);
+}
+
+.divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 20px 0;
+}
+
 .form-group {
     margin-bottom: 20px;
 }
@@ -310,16 +395,24 @@ footer p {
         padding: 15px;
     }
 
-    h1 {
-        font-size: 1.5rem;
-    }
-
-    .subtitle {
-        font-size: 0.9rem;
-    }
-
     .form-section {
         padding: 20px;
+    }
+    
+    .add-stop-section h3 {
+        font-size: 1rem;
+    }
+    
+    .instruction {
+        font-size: 0.8rem;
+    }
+    
+    .add-stop-form {
+        flex-direction: column;
+    }
+    
+    .add-stop-btn {
+        width: 100%;
     }
 
     .monitoring-btn {
